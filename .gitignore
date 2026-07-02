@@ -34,3 +34,4 @@ build/
 
 ### Cursor ###
 .cursor/
+env.md
