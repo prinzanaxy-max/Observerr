@@ -2,22 +2,53 @@
   "info": {
     "name": "Observerr API",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "description": "Complete API collection for Observerr — online exam integrity monitoring platform. Includes auth, RBAC, and error case tests.",
+    "description": "Complete API collection for Observerr — online exam integrity monitoring platform.\n\nSETUP:\n1. Select the 'Observerr' environment (top right)\n2. Run Register or Login first — tokens are saved automatically\n3. All other requests use {{accessToken}} / {{refreshToken}} from the environment",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8080",
+      "value": "https://observerr-production.up.railway.app",
       "type": "string"
     }
   ],
   "item": [
     {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status is UP\", () => pm.expect(pm.response.json().status).to.eql('UP'));",
+                  "pm.test(\"App is Observerr Backend\", () => pm.expect(pm.response.json().app).to.eql('Observerr Backend'));",
+                  "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Auth",
       "item": [
         {
-          "name": "Register",
+          "name": "Register (Lecturer)",
           "request": {
             "method": "POST",
             "header": [
@@ -50,8 +81,53 @@
                   "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
                   "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
                   "pm.test(\"Token type is Bearer\", () => pm.expect(pm.response.json().tokenType).to.eql('Bearer'));",
+                  "pm.test(\"Role is LECTURER\", () => pm.expect(pm.response.json().role).to.eql('LECTURER'));",
+                  "pm.test(\"Has expiresIn\", () => pm.expect(pm.response.json().expiresIn).to.be.a('number'));",
                   "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);"
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
+                  "console.log('Tokens saved to environment');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register (Student)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Kofi Atta\",\n  \"email\": \"kofi@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
+                  "pm.test(\"Role is STUDENT\", () => pm.expect(pm.response.json().role).to.eql('STUDENT'));",
+                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
+                  "console.log('Student tokens saved to environment');"
                 ],
                 "type": "text/javascript"
               }
@@ -91,8 +167,11 @@
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
                   "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
+                  "pm.test(\"Has fullName\", () => pm.expect(pm.response.json().fullName).to.be.a('string'));",
+                  "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
                   "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);"
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
+                  "console.log('Logged in as ' + pm.response.json().role + ' — tokens saved');"
                 ],
                 "type": "text/javascript"
               }
@@ -122,8 +201,10 @@
                 "exec": [
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Has new access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
+                  "pm.test(\"Has new refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
                   "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);"
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
+                  "console.log('Tokens refreshed and saved');"
                 ],
                 "type": "text/javascript"
               }
@@ -152,7 +233,9 @@
               "script": {
                 "exec": [
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has id\", () => pm.expect(pm.response.json().id).to.be.a('number'));",
                   "pm.test(\"Has email\", () => pm.expect(pm.response.json().email).to.be.a('string'));",
+                  "pm.test(\"Has fullName\", () => pm.expect(pm.response.json().fullName).to.be.a('string'));",
                   "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
                   "pm.test(\"No password in response\", () => pm.expect(pm.response.json().password).to.be.undefined);"
                 ],
@@ -167,7 +250,7 @@
       "name": "Student",
       "item": [
         {
-          "name": "Student Hello (as student)",
+          "name": "Student Hello (as student — expect 200)",
           "request": {
             "method": "GET",
             "header": [
@@ -216,7 +299,8 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Status 403 with lecturer token\", () => pm.response.to.have.status(403));"
+                  "pm.test(\"Status 403 Forbidden\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Error is Forbidden\", () => pm.expect(pm.response.json().error).to.eql('Forbidden'));"
                 ],
                 "type": "text/javascript"
               }
@@ -229,7 +313,7 @@
       "name": "Lecturer",
       "item": [
         {
-          "name": "Lecturer Hello (as lecturer)",
+          "name": "Lecturer Hello (as lecturer — expect 200)",
           "request": {
             "method": "GET",
             "header": [
@@ -278,7 +362,8 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Status 403 with student token\", () => pm.response.to.have.status(403));"
+                  "pm.test(\"Status 403 Forbidden\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Error is Forbidden\", () => pm.expect(pm.response.json().error).to.eql('Forbidden'));"
                 ],
                 "type": "text/javascript"
               }
@@ -322,6 +407,7 @@
                 "exec": [
                   "pm.test(\"Status 409 Conflict\", () => pm.response.to.have.status(409));",
                   "pm.test(\"Error is CONFLICT\", () => pm.expect(pm.response.json().error).to.eql('CONFLICT'));",
+                  "pm.test(\"Message is correct\", () => pm.expect(pm.response.json().message).to.eql('Email already registered'));",
                   "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
                 ],
                 "type": "text/javascript"
@@ -361,7 +447,7 @@
                 "exec": [
                   "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
                   "pm.test(\"Error is UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql('UNAUTHORIZED'));",
-                  "pm.test(\"Message does not reveal which field was wrong\", () => pm.expect(pm.response.json().message).to.eql('Invalid credentials'));"
+                  "pm.test(\"Generic message hides which field was wrong\", () => pm.expect(pm.response.json().message).to.eql('Invalid credentials'));"
                 ],
                 "type": "text/javascript"
               }
@@ -424,7 +510,75 @@
                 "exec": [
                   "pm.test(\"Status 400 Bad Request\", () => pm.response.to.have.status(400));",
                   "pm.test(\"Error is VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql('VALIDATION_FAILED'));",
-                  "pm.test(\"Has field errors\", () => pm.expect(pm.response.json().errors).to.be.an('object'));"
+                  "pm.test(\"Has field errors map\", () => pm.expect(pm.response.json().errors).to.be.an('object'));",
+                  "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Non-Existent Email (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nobody@university.edu\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Same message as wrong password\", () => pm.expect(pm.response.json().message).to.eql('Invalid credentials'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh With Invalid Token (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer this.is.not.a.real.jwt"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Error is UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql('UNAUTHORIZED'));"
                 ],
                 "type": "text/javascript"
               }
