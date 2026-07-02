@@ -1,0 +1,437 @@
+{
+  "info": {
+    "name": "Observerr API",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "Complete API collection for Observerr — online exam integrity monitoring platform. Includes auth, RBAC, and error case tests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Dr. Kwame Mensah\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
+                  "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
+                  "pm.test(\"Token type is Bearer\", () => pm.expect(pm.response.json().tokenType).to.eql('Bearer'));",
+                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
+                  "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
+                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{refreshToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has new access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
+                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
+                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (Current User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has email\", () => pm.expect(pm.response.json().email).to.be.a('string'));",
+                  "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
+                  "pm.test(\"No password in response\", () => pm.expect(pm.response.json().password).to.be.undefined);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Student",
+      "item": [
+        {
+          "name": "Student Hello (as student)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/student/hello",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "student", "hello"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200 with student token\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Correct greeting\", () => pm.expect(pm.response.text()).to.include('Student'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student Hello (as lecturer — expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/student/hello",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "student", "hello"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 403 with lecturer token\", () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Lecturer",
+      "item": [
+        {
+          "name": "Lecturer Hello (as lecturer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/hello",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "hello"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200 with lecturer token\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Correct greeting\", () => pm.expect(pm.response.text()).to.include('Lecturer'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lecturer Hello (as student — expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/hello",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "hello"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 403 with student token\", () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
+          "name": "Register Duplicate Email (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Dr. Kwame Mensah\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 409 Conflict\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Error is CONFLICT\", () => pm.expect(pm.response.json().error).to.eql('CONFLICT'));",
+                  "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Wrong Password (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"wrongpassword\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Error is UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql('UNAUTHORIZED'));",
+                  "pm.test(\"Message does not reveal which field was wrong\", () => pm.expect(pm.response.json().message).to.eql('Invalid credentials'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Protected Route Without Token (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Error is Unauthorized\", () => pm.expect(pm.response.json().error).to.eql('Unauthorized'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Missing Fields (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"invalid-email\",\n  \"password\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 400 Bad Request\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error is VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql('VALIDATION_FAILED'));",
+                  "pm.test(\"Has field errors\", () => pm.expect(pm.response.json().errors).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
