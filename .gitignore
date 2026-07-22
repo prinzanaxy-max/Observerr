@@ -35,3 +35,4 @@ build/
 ### Cursor ###
 .cursor/
 env.md
+run-local.ps1
