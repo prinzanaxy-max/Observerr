@@ -50,7 +50,7 @@ public class User implements UserDetails {
     private boolean enabled = true;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "integer not null default 0")
     private int tokenVersion = 0;
 
     @Override

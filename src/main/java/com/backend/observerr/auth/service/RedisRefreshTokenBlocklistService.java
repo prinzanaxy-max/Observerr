@@ -6,12 +6,12 @@ import io.lettuce.core.api.sync.RedisCommands;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "spring.data.redis.url", matchIfMissing = false)
+@ConditionalOnExpression("'${spring.data.redis.url:}' != ''")
 public class RedisRefreshTokenBlocklistService implements RefreshTokenBlocklistService {
 
     private static final String KEY_PREFIX = "blacklist:refresh:";
