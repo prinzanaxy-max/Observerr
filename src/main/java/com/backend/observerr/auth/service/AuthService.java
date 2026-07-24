@@ -2,13 +2,18 @@ package com.backend.observerr.auth.service;
 
 import com.backend.observerr.auth.dto.AuthResponse;
 import com.backend.observerr.auth.dto.LoginRequest;
+import com.backend.observerr.auth.dto.LogoutResponse;
 import com.backend.observerr.auth.dto.RegisterRequest;
 import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.model.UserRepository;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 
 @Slf4j
 @Service
@@ -18,6 +23,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenBlocklistService refreshTokenBlocklistService;
+    private final AuthCookieService authCookieService;
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -33,16 +40,7 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String accessToken = jwtService.generateAccessToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .role(user.getRole().name())
-                .fullName(user.getFullName())
-                .expiresIn(jwtService.getExpiration())
-                .build();
+        return buildAuthResponse(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -57,6 +55,52 @@ public class AuthService {
             throw new RuntimeException("Invalid credentials");
         }
 
+        return buildAuthResponse(user);
+    }
+
+    public AuthResponse refreshToken(String refreshToken) {
+        User user = resolveUserFromRefreshToken(refreshToken);
+
+        // All refresh token verification must check the Redis blocklist before trusting the token.
+        assertRefreshTokenNotBlocklisted(refreshToken);
+        assertRefreshTokenValid(refreshToken, user);
+
+        blocklistRefreshToken(refreshToken);
+
+        return buildAuthResponse(user);
+    }
+
+    @Transactional
+    public LogoutResponse logout(User user, String refreshToken, boolean allDevices, HttpServletResponse response) {
+        authCookieService.clearAuthCookies(response);
+
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            try {
+                blocklistRefreshToken(refreshToken);
+            } catch (Exception ex) {
+                log.debug("Could not blocklist refresh token during logout: {}", ex.getMessage());
+            }
+        }
+
+        if (allDevices && user != null) {
+            user.setTokenVersion(user.getTokenVersion() + 1);
+            userRepository.save(user);
+        }
+
+        Long userId = user != null ? user.getId() : null;
+        log.info("User logout userId={} timestamp={} allDevices={}", userId, Instant.now(), allDevices);
+
+        return LogoutResponse.builder()
+                .success(true)
+                .message("Logged out successfully")
+                .build();
+    }
+
+    public void attachAuthCookies(HttpServletResponse response, AuthResponse authResponse) {
+        authCookieService.setAuthCookies(response, authResponse.getAccessToken(), authResponse.getRefreshToken());
+    }
+
+    private AuthResponse buildAuthResponse(User user) {
         String accessToken = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
@@ -69,25 +113,28 @@ public class AuthService {
                 .build();
     }
 
-    public AuthResponse refreshToken(String refreshToken) {
+    private User resolveUserFromRefreshToken(String refreshToken) {
         String email = jwtService.extractEmail(refreshToken);
-
-        User user = userRepository.findByEmail(email)
+        return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+    }
 
-        if (!jwtService.isTokenValid(refreshToken, user)) {
+    private void assertRefreshTokenNotBlocklisted(String refreshToken) {
+        String jti = jwtService.extractJti(refreshToken);
+        if (refreshTokenBlocklistService.isBlocked(jti)) {
             throw new RuntimeException("Invalid credentials");
         }
+    }
 
-        String newAccessToken = jwtService.generateAccessToken(user);
-        String newRefreshToken = jwtService.generateRefreshToken(user);
+    private void assertRefreshTokenValid(String refreshToken, User user) {
+        if (!jwtService.isRefreshTokenValid(refreshToken, user)) {
+            throw new RuntimeException("Invalid credentials");
+        }
+    }
 
-        return AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .role(user.getRole().name())
-                .fullName(user.getFullName())
-                .expiresIn(jwtService.getExpiration())
-                .build();
+    private void blocklistRefreshToken(String refreshToken) {
+        String jti = jwtService.extractJti(refreshToken);
+        long ttlSeconds = jwtService.getRemainingTtlSeconds(refreshToken);
+        refreshTokenBlocklistService.blocklist(jti, ttlSeconds);
     }
 }

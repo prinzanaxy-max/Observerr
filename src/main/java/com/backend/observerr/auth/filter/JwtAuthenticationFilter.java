@@ -40,6 +40,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Access-token auth only. Refresh tokens are verified in AuthService.refreshToken(),
+        // which must check the Redis blocklist and user tokenVersion before trusting a refresh token.
+
         try {
             final String jwt = authHeader.substring(7);
             final String email = jwtService.extractEmail(jwt);
