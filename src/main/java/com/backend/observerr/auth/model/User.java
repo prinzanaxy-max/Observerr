@@ -27,8 +27,8 @@ public class User implements UserDetails {
     private Long id;
 
     @NotBlank
-    @Column(nullable = false)
-    private String fullName;
+    @Column(name = "institutional_id", unique = true, nullable = false)
+    private String institutionalId;
 
     @Email
     @Column(unique = true, nullable = false)

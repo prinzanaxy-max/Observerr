@@ -59,7 +59,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Dr. Kwame Mensah\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
+              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -104,7 +104,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Kofi Atta\",\n  \"email\": \"kofi@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}",
+              "raw": "{\n  \"institutionalId\": \"STU-001\",\n  \"email\": \"kofi@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -146,7 +146,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\"\n}",
+              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"password\": \"password123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -167,7 +167,7 @@
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
                   "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
-                  "pm.test(\"Has fullName\", () => pm.expect(pm.response.json().fullName).to.be.a('string'));",
+                  "pm.test(\"Has institutionalId\", () => pm.expect(pm.response.json().institutionalId).to.be.a('string'));",
                   "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
                   "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
                   "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
@@ -235,7 +235,7 @@
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Has id\", () => pm.expect(pm.response.json().id).to.be.a('number'));",
                   "pm.test(\"Has email\", () => pm.expect(pm.response.json().email).to.be.a('string'));",
-                  "pm.test(\"Has fullName\", () => pm.expect(pm.response.json().fullName).to.be.a('string'));",
+                  "pm.test(\"Has institutionalId\", () => pm.expect(pm.response.json().institutionalId).to.be.a('string'));",
                   "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
                   "pm.test(\"No password in response\", () => pm.expect(pm.response.json().password).to.be.undefined);"
                 ],
@@ -387,7 +387,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Dr. Kwame Mensah\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
+              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -427,7 +427,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"wrongpassword\"\n}",
+              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"password\": \"wrongpassword\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -530,7 +530,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"nobody@university.edu\",\n  \"password\": \"password123\"\n}",
+              "raw": "{\n  \"institutionalId\": \"UNKNOWN-999\",\n  \"password\": \"password123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

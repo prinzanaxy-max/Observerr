@@ -31,6 +31,10 @@ public class GlobalExceptionHandler {
             return buildErrorResponse(HttpStatus.CONFLICT, "CONFLICT", message);
         }
 
+        if (message != null && message.equalsIgnoreCase("Institutional ID already registered")) {
+            return buildErrorResponse(HttpStatus.CONFLICT, "CONFLICT", message);
+        }
+
         if (message != null && message.equalsIgnoreCase("Invalid credentials")) {
             return buildErrorResponse(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", message);
         }

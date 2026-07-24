@@ -20,7 +20,7 @@ import java.util.function.Function;
 public class JwtService {
 
     private static final String CLAIM_ROLE = "role";
-    private static final String CLAIM_FULL_NAME = "fullName";
+    private static final String CLAIM_INSTITUTIONAL_ID = "institutionalId";
     private static final String CLAIM_JTI = "jti";
     private static final String CLAIM_TOKEN_VERSION = "tokenVersion";
     private static final String CLAIM_TYPE = "type";
@@ -42,7 +42,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim(CLAIM_ROLE, user.getRole().name())
-                .claim(CLAIM_FULL_NAME, user.getFullName())
+                .claim(CLAIM_INSTITUTIONAL_ID, user.getInstitutionalId())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .issuer(issuer)

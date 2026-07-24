@@ -27,12 +27,15 @@ public class AuthService {
     private final AuthCookieService authCookieService;
 
     public AuthResponse register(RegisterRequest request) {
+        if (userRepository.existsByInstitutionalId(request.getInstitutionalId())) {
+            throw new RuntimeException("Institutional ID already registered");
+        }
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already registered");
         }
 
         User user = User.builder()
-                .fullName(request.getFullName())
+                .institutionalId(request.getInstitutionalId())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
@@ -44,14 +47,14 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByInstitutionalId(request.getInstitutionalId())
                 .orElseThrow(() -> {
-                    log.warn("Failed login attempt for email: {}", request.getEmail());
+                    log.warn("Failed login attempt for institutional ID: {}", request.getInstitutionalId());
                     return new RuntimeException("Invalid credentials");
                 });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            log.warn("Failed login attempt — wrong password for email: {}", request.getEmail());
+            log.warn("Failed login attempt — wrong password for institutional ID: {}", request.getInstitutionalId());
             throw new RuntimeException("Invalid credentials");
         }
 
@@ -108,7 +111,7 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .role(user.getRole().name())
-                .fullName(user.getFullName())
+                .institutionalId(user.getInstitutionalId())
                 .expiresIn(jwtService.getExpiration())
                 .build();
     }

@@ -73,8 +73,8 @@ public class AuthController {
             @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(Map.of(
                 "id", user.getId(),
+                "institutionalId", user.getInstitutionalId(),
                 "email", user.getEmail(),
-                "fullName", user.getFullName(),
                 "role", user.getRole().name(),
                 "createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : ""
         ));
