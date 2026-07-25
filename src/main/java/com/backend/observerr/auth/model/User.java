@@ -40,6 +40,12 @@ public class User implements UserDetails {
     @Column(name = "last_name", length = 50)
     private String lastName;
 
+    @Column(name = "profile_picture_url", length = 512)
+    private String profilePictureUrl;
+
+    @Column(name = "profile_picture_public_id", length = 255)
+    private String profilePicturePublicId;
+
     @Column(nullable = false)
     private String password;
 

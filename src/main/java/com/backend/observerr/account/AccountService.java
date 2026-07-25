@@ -101,6 +101,7 @@ public class AccountService {
                 .lastName(user.getLastName())
                 .institutionalId(user.getInstitutionalId())
                 .email(user.getEmail())
+                .profilePictureUrl(user.getProfilePictureUrl())
                 .build();
     }
 }

@@ -7,11 +7,9 @@ import lombok.Getter;
 @Getter
 @Builder
 @AllArgsConstructor
-public class AccountResponse {
+public class ProfilePictureResponse {
 
-    private final String firstName;
-    private final String lastName;
-    private final String institutionalId;
-    private final String email;
+    private final boolean success;
+    private final String message;
     private final String profilePictureUrl;
 }

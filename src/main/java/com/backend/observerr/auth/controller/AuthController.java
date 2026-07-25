@@ -76,6 +76,7 @@ public class AuthController {
                 "institutionalId", user.getInstitutionalId(),
                 "email", user.getEmail(),
                 "role", user.getRole().name(),
+                "profilePictureUrl", user.getProfilePictureUrl() != null ? user.getProfilePictureUrl() : "",
                 "createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : ""
         ));
     }
