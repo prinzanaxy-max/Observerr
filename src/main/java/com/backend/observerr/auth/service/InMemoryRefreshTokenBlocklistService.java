@@ -1,7 +1,7 @@
 package com.backend.observerr.auth.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 import java.util.Iterator;
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
-@ConditionalOnMissingBean(RefreshTokenBlocklistService.class)
+@ConditionalOnExpression("'${spring.data.redis.url:}'.trim().isEmpty()")
 public class InMemoryRefreshTokenBlocklistService implements RefreshTokenBlocklistService {
 
     private final Map<String, Long> blocklist = new ConcurrentHashMap<>();

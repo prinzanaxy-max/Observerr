@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@ConditionalOnExpression("'${spring.data.redis.url:}' != ''")
+@ConditionalOnExpression("!'${spring.data.redis.url:}'.trim().isEmpty()")
 public class RedisRateLimitService implements RateLimitService {
 
     private final RedisClient redisClient;

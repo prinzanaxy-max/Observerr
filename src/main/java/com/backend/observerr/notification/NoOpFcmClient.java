@@ -5,12 +5,12 @@ import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MulticastMessage;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@ConditionalOnMissingBean(FcmClient.class)
+@ConditionalOnExpression("'${firebase.service-account-json:}'.trim().isEmpty()")
 public class NoOpFcmClient implements FcmClient {
 
     @Override

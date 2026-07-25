@@ -1,7 +1,7 @@
 package com.backend.observerr.security;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 import java.util.Iterator;
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
-@ConditionalOnMissingBean(RateLimitService.class)
+@ConditionalOnExpression("'${spring.data.redis.url:}'.trim().isEmpty()")
 public class InMemoryRateLimitService implements RateLimitService {
 
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
