@@ -8,11 +8,11 @@ import com.backend.observerr.notification.model.DeviceToken;
 import com.backend.observerr.notification.repository.DeviceTokenRepository;
 import com.google.firebase.messaging.BatchResponse;
 import com.google.firebase.messaging.FirebaseMessagingException;
+import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MulticastMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -66,7 +66,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void notifyStudentsExamStarted_skipsWhenNoEnrolledStudents() {
+    void notifyStudentsExamStarted_skipsWhenNoEnrolledStudents() throws FirebaseMessagingException {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.findStudentIdsByExamId(42L)).thenReturn(List.of());
 
@@ -77,7 +77,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void notifyStudentsExamStarted_skipsWhenNoDeviceTokens() {
+    void notifyStudentsExamStarted_skipsWhenNoDeviceTokens() throws FirebaseMessagingException {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.findStudentIdsByExamId(42L)).thenReturn(List.of(1L, 2L));
         when(deviceTokenRepository.findByUserIdIn(List.of(1L, 2L))).thenReturn(List.of());
@@ -117,17 +117,17 @@ class NotificationServiceTest {
 
         notificationService.notifyLecturerExamStarted(42L);
 
-        verify(fcmClient).send(any());
+        verify(fcmClient).send(any(Message.class));
     }
 
     @Test
-    void notifyLecturerExamStarted_skipsWhenNoTokens() {
+    void notifyLecturerExamStarted_skipsWhenNoTokens() throws FirebaseMessagingException {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.countByExamId(42L)).thenReturn(0L);
         when(deviceTokenRepository.findByUserId(7L)).thenReturn(List.of());
 
         notificationService.notifyLecturerExamStarted(42L);
 
-        verify(fcmClient, never()).send(any());
+        verify(fcmClient, never()).send(any(Message.class));
     }
 }
