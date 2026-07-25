@@ -114,11 +114,21 @@
     		<optional>true</optional>
 		</dependency>
 
-		<!-- Firebase Cloud Messaging -->
+		<!-- Firebase Cloud Messaging (FCM only — exclude unused GCP modules to reduce build memory) -->
 		<dependency>
 			<groupId>com.google.firebase</groupId>
 			<artifactId>firebase-admin</artifactId>
 			<version>9.4.3</version>
+			<exclusions>
+				<exclusion>
+					<groupId>com.google.cloud</groupId>
+					<artifactId>google-cloud-firestore</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.google.cloud</groupId>
+					<artifactId>google-cloud-storage</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<!-- Cloudinary -->

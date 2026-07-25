@@ -1,0 +1,8 @@
+target/
+.git/
+.idea/
+*.iml
+.env
+env.md
+run-local.ps1
+scripts/
