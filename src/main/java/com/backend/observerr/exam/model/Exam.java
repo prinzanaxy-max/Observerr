@@ -26,6 +26,42 @@ public class Exam {
     @Column(name = "lecturer_id", nullable = false)
     private Long lecturerId;
 
+    @Column(name = "course_code", length = 50)
+    private String courseCode;
+
+    @Column(name = "course_name")
+    private String courseName;
+
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
+
+    @Builder.Default
+    @Column(name = "webcam_monitoring", nullable = false)
+    private boolean webcamMonitoring = true;
+
+    @Builder.Default
+    @Column(name = "tab_switch_tracking", nullable = false)
+    private boolean tabSwitchTracking = true;
+
+    @Builder.Default
+    @Column(name = "block_copy_paste", nullable = false)
+    private boolean blockCopyPaste = true;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean published = false;
+
+    @Builder.Default
+    @Column(name = "enrolled_count", nullable = false)
+    private int enrolledCount = 0;
+
+    @Column(name = "capacity_count")
+    private Integer capacityCount;
+
+    @Builder.Default
+    @Column(name = "active_flags_count", nullable = false)
+    private int activeFlagsCount = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ExamStatus status;
