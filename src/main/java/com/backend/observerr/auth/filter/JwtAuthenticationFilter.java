@@ -1,5 +1,6 @@
 package com.backend.observerr.auth.filter;
 
+import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -50,7 +51,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                // Reject access tokens whose tokenVersion no longer matches the user record
+                // (e.g. after password change or logout-all-devices).
+                if (userDetails instanceof User user && jwtService.isAccessTokenValid(jwt, user)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,

@@ -43,6 +43,7 @@ public class JwtService {
                 .subject(user.getEmail())
                 .claim(CLAIM_ROLE, user.getRole().name())
                 .claim(CLAIM_INSTITUTIONAL_ID, user.getInstitutionalId())
+                .claim(CLAIM_TOKEN_VERSION, user.getTokenVersion())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .issuer(issuer)
@@ -105,6 +106,12 @@ public class JwtService {
     public boolean isRefreshTokenValid(String token, User user) {
         return isTokenValid(token, user)
                 && isRefreshToken(token)
+                && extractTokenVersion(token) == user.getTokenVersion();
+    }
+
+    public boolean isAccessTokenValid(String token, User user) {
+        return isTokenValid(token, user)
+                && !isRefreshToken(token)
                 && extractTokenVersion(token) == user.getTokenVersion();
     }
 
