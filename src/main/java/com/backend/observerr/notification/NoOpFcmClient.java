@@ -25,8 +25,7 @@ public class NoOpFcmClient implements FcmClient {
 
     @Override
     public BatchResponse sendEachForMulticast(MulticastMessage message) throws FirebaseMessagingException {
-        log.warn("FCM disabled — skipping multicast notification send for {} tokens",
-                message.getTokens().size());
+        log.warn("FCM disabled — skipping multicast notification send");
         return null;
     }
 }
