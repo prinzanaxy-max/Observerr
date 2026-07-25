@@ -24,10 +24,13 @@ CREATE INDEX IF NOT EXISTS idx_student_completed_assessments_student_date
 CREATE INDEX IF NOT EXISTS idx_student_completed_assessments_student_status
     ON student_completed_assessments (student_id, status);
 
+ALTER TABLE student_completed_assessments
+    ALTER COLUMN created_at SET DEFAULT NOW();
+
 INSERT INTO student_completed_assessments
-    (student_id, course_name, course_code, assessment_type, category, taken_date, timing_type, start_time, end_time, submitted_time, integrity_score, status)
+    (student_id, course_name, course_code, assessment_type, category, taken_date, timing_type, start_time, end_time, submitted_time, integrity_score, status, created_at)
 SELECT u.id, v.course_name, v.course_code, v.assessment_type, v.category, v.taken_date::date, v.timing_type,
-       v.start_time::time, v.end_time::time, v.submitted_time::time, v.integrity_score, v.status
+       v.start_time::time, v.end_time::time, v.submitted_time::time, v.integrity_score, v.status, NOW()
 FROM users u
 CROSS JOIN (VALUES
     ('Advanced Organic Chemistry', 'CHEM-401', 'Midterm Exam', 'science', '2023-10-12', 'TIMED', '09:00', '11:30', NULL, 98, 'VERIFIED'),
