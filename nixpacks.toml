@@ -1,6 +1,6 @@
-# Railway/Nixpacks: cap JVM heap so Spring Boot fits in small containers (512 MB tier).
-[variables]
-JAVA_TOOL_OPTIONS = "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport -XX:+ExitOnOutOfMemoryError"
+# Runtime JVM flags live in [start] only — do NOT set JAVA_TOOL_OPTIONS here,
+# it applies during the Maven build and can OOM-kill compilation on small builders.
 
 [start]
-cmd = "java -jar target/observerr-0.0.1-SNAPSHOT.jar"
+cmd = "java -XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport -XX:+ExitOnOutOfMemoryError -jar target/observerr-0.0.1-SNAPSHOT.jar"
+
