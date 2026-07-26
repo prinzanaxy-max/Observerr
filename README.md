@@ -1,285 +1,318 @@
 # Observerr Backend
 
-## Overview
-
-Spring Boot 4.1.0 backend for Observerr — an online exam integrity monitoring platform. Provides a stateless JWT-based authentication system with role-based access control (RBAC) for Students, Lecturers, and Administrators.
-
-## Live Deployment
+Spring Boot backend for **Observerr** — an online exam integrity monitoring platform with JWT auth, role-based access (Student / Lecturer / Admin), proctoring session ingest, and lecturer analytics.
 
 | Environment | URL |
 |---|---|
-| Production (Railway) | `https://observerr-production.up.railway.app` |
-| Local dev | `http://localhost:8080` |
+| Production | `https://observerr-production.up.railway.app` |
+| Frontend | `https://observerr-ui.pages.dev` |
+| Local | `http://localhost:8080` |
 
-## Tech Stack
+---
+
+## Tech stack
 
 | Layer | Technology |
 |---|---|
 | Language | Java 21 |
-| Framework | Spring Boot 4.1.0 |
-| Security | Spring Security 6 + JWT (jjwt 0.12.3) |
-| Database | PostgreSQL (Neon serverless) |
+| Framework | Spring Boot 4.1 |
+| Security | Spring Security + JWT (jjwt 0.12) |
+| Database | PostgreSQL (Neon) |
+| Migrations | Flyway (`src/main/resources/db/migration`) |
 | ORM | Spring Data JPA / Hibernate 7 |
-| Build | Maven |
-| Utilities | Lombok |
+| Cache | Caffeine (student results) |
+| Push | Firebase Cloud Messaging (optional) |
+| Media | Cloudinary (profile pictures, optional) |
+| Build / deploy | Maven, Docker, Railway |
 
 ---
 
-## Getting Started (Local)
+## Quick start (local)
 
 ### Prerequisites
 
 - Java 21+
-- Maven 3.9+
-- A Neon PostgreSQL database (or any PostgreSQL 14+ instance)
+- Node.js 18+ (for manual Neon seed scripts only)
+- A Neon PostgreSQL database (or PostgreSQL 14+)
 
-### Setup
+### 1. Environment variables
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/prinzanaxy-max/Observerr.git
-   cd observerr
-   ```
+Set at minimum:
 
-2. Set the required environment variables (or export them in your shell):
-   ```bash
-   export SPRING_DATASOURCE_URL=jdbc:postgresql://<host>/<db>?sslmode=require
-   export SPRING_DATASOURCE_USERNAME=<username>
-   export SPRING_DATASOURCE_PASSWORD=<password>
-   export JWT_SECRET=<your-secret-min-32-chars>
-   ```
+```bash
+export SPRING_DATASOURCE_URL="jdbc:postgresql://<host>/<db>?sslmode=require"
+export SPRING_DATASOURCE_USERNAME="<username>"
+export SPRING_DATASOURCE_PASSWORD="<password>"
+export JWT_SECRET="<min-32-chars>"
+```
 
-3. Run the application:
-   ```bash
-   ./mvnw spring-boot:run
-   ```
+On Windows, use `run-local.ps1` (gitignored) or copy values from your local `env.md`.
 
-4. API available at: `http://localhost:8080`
+### 2. Run
+
+```bash
+./mvnw spring-boot:run
+```
+
+Health check: `GET http://localhost:8080/health`
+
+### 3. Tests
+
+```bash
+./mvnw test
+```
 
 ---
 
-## Environment Variables
+## Deployment (Railway)
 
-All configuration is injected via environment variables. Set these in Railway (Settings → Variables) or your local shell.
+- **Builder:** Dockerfile (`railway.toml`)
+- **Health check:** `GET /health` (120s timeout)
+- **Port:** Railway sets `PORT`; app binds via `server.port=${PORT:8080}`
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `SPRING_DATASOURCE_URL` | Yes | — | Neon PostgreSQL JDBC URL |
-| `SPRING_DATASOURCE_USERNAME` | Yes | — | DB username |
-| `SPRING_DATASOURCE_PASSWORD` | Yes | — | DB password |
-| `JWT_SECRET` | Yes | — | JWT signing secret (min 32 chars / 256 bits) |
-| `SPRING_DATASOURCE_DRIVER_CLASS_NAME` | No | `org.postgresql.Driver` | JDBC driver |
-| `SPRING_JPA_DATABASE_PLATFORM` | No | `PostgreSQLDialect` | Hibernate dialect |
-| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `update` | Schema strategy |
-| `SPRING_JPA_SHOW_SQL` | No | `false` | Log SQL queries |
-| `SERVER_PORT` | No | `8080` | HTTP port |
-| `JWT_EXPIRATION` | No | `86400000` | Access token TTL (ms) — 24h |
-| `JWT_REFRESH_EXPIRATION` | No | `604800000` | Refresh token TTL (ms) — 7 days |
-| `JWT_ISSUER` | No | `observerr` | JWT issuer claim |
-| `SPRING_WEB_CORS_ALLOWED_ORIGINS` | No | `http://localhost:5178` | Allowed CORS origin |
-| `SPRING_PROFILES_ACTIVE` | No | — | Set to `production` on Railway |
+### Required Railway variables
+
+| Variable | Description |
+|---|---|
+| `SPRING_DATASOURCE_URL` | Neon JDBC URL |
+| `SPRING_DATASOURCE_USERNAME` | DB user |
+| `SPRING_DATASOURCE_PASSWORD` | DB password |
+| `JWT_SECRET` | Min 32 characters |
+
+### Recommended production variables
+
+| Variable | Description |
+|---|---|
+| `SPRING_WEB_CORS_ALLOWED_ORIGINS` | e.g. `https://observerr-ui.pages.dev` |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | `validate` (default — Flyway owns schema) |
+| `REDIS_URL` | Upstash Redis TCP URL (refresh-token blocklist) |
+| `AUTH_COOKIE_SECURE` | `true` |
+| `AUTH_COOKIE_SAME_SITE` | `None` (cross-site cookies with HTTPS frontend) |
+| `CLOUDINARY_*` | Profile picture uploads |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM push (optional; no-op client if unset) |
+
+See gitignored `env.md` for a full Railway Raw Editor template.
+
+### Deploy troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Healthcheck failed | App crash on startup | Check **Deploy Logs** for Flyway / schema validation errors |
+| `missing table [...]` | Migration not applied | Run manual seed scripts (below), then redeploy |
+| Build OK, deploy “upstream issues” | Railway infra glitch | Redeploy; production may still run on previous replica |
+| `401` on all routes | Missing / wrong `JWT_SECRET` | Set variable and redeploy |
+
+---
+
+## Database & migrations
+
+Schema is managed by **Flyway** (`V1`–`V13`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
+
+| Migration | Purpose |
+|---|---|
+| V1–V5 | Users, profile columns |
+| V4 | Exams, enrollments, device tokens |
+| V6–V8 | Student completed assessments + demo seed |
+| V9 | Lecturer courses, proctoring sessions, demo students |
+| V10 | Lecturer exams extension + demo exams |
+| V11 | `exam_sessions`, `integrity_events` (live proctoring ingest) |
+| V12 | Enroll demo student `STU-12345` in published exams |
+| V13 | Lecturer analytics overview seed data |
+
+If Flyway did not run on Neon (legacy DB), apply manually:
+
+```bash
+# Set DATABASE_URL or SPRING_DATASOURCE_* (see scripts/db-connection.mjs)
+node scripts/run-exam-sessions-migration.mjs   # V11
+node scripts/run-student-exams-seed.mjs        # V12
+node scripts/run-lecturer-analytics-seed.mjs   # V13
+node scripts/run-neon-seed.mjs                 # student results demo
+node scripts/run-lecturer-seed.mjs             # lecturer students demo
+node scripts/run-lecturer-exams-seed.mjs       # lecturer exams demo
+```
+
+Scripts accept either `DATABASE_URL` or `SPRING_DATASOURCE_URL` + `SPRING_DATASOURCE_USERNAME` + `SPRING_DATASOURCE_PASSWORD`.
 
 ---
 
 ## Authentication
 
-All protected routes require:
+Protected routes:
+
 ```
-Authorization: Bearer <access_token>
+Authorization: Bearer <accessToken>
 ```
 
-Tokens are obtained from `/api/auth/login` or `/api/auth/register`.
+Obtain tokens from `POST /api/auth/login` or `POST /api/auth/register`.
+
+| Role | Prefix |
+|---|---|
+| Student | `/api/student/**` |
+| Lecturer | `/api/lecturer/**` |
+| Admin | `/api/admin/**` |
 
 ---
 
-## API Endpoints
+## API reference
 
 ### Health
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/health` | No | Server health check |
-
-### Auth
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | No | Register a new user |
-| `POST` | `/api/auth/login` | No | Login and receive tokens |
-| `POST` | `/api/auth/refresh` | Refresh token | Get a new access token |
-| `GET` | `/api/auth/me` | Access token | Get current user info |
-
-### Student (requires `STUDENT` role)
-
-| Method | Endpoint | Description |
+| Method | Path | Auth |
 |---|---|---|
-| `GET` | `/api/student/hello` | Student role test endpoint |
+| `GET` | `/health` | No |
 
-### Lecturer (requires `LECTURER` role)
+### Auth — `/api/auth`
 
-| Method | Endpoint | Description |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/register` | No | Register |
+| `POST` | `/login` | No | Login |
+| `POST` | `/refresh` | Refresh token | New access token |
+| `POST` | `/logout` | Access token | Logout |
+| `GET` | `/me` | Access token | Current user |
+
+### Account — `/api/account`
+
+| Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/lecturer/hello` | Lecturer role test endpoint |
+| `GET` | `/me` | Profile |
+| `PATCH` | `/me` | Update profile |
+| `PATCH` | `/me/password` | Change password |
+| `POST` | `/me/profile-picture` | Upload avatar (multipart) |
+| `DELETE` | `/me/profile-picture` | Remove avatar |
+
+### Student results — `/api/student/results` (STUDENT)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Paginated completed assessments (`page`, `size`, `sort`) |
+| `GET` | `/summary` | Dashboard summary counts |
+
+### Student stats — `/api/student/stats` (STUDENT)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Dashboard cards (exams completed, avg integrity, etc.) |
+
+### Student exams — `/api/student/exams` (STUDENT)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Enrolled published exams |
+| `GET` | `/{examId}` | Single exam detail (`canTake`, `security`, schedule) |
+
+### Integrity ingest — (STUDENT)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/student/exams/{examId}/sessions` | Start proctoring session → UUID `sessionId` |
+| `POST` | `/api/student/exam-sessions/{sessionId}/integrity-events` | Batch append events (idempotent on `clientEventId`) |
+| `POST` | `/api/student/exam-sessions/{sessionId}/complete` | Complete session + final summary |
+
+### Lecturer students — `/api/lecturer/students` (LECTURER)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Roster (`page`, `size`, `search`, `course`) |
+| `GET` | `/sessions/{sessionId}` | Session timeline (UUID = live sessions, numeric = legacy demo) |
+
+### Lecturer exams — `/api/lecturer/exams` (LECTURER)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | List exams (`status`, `search`) |
+| `GET` | `/{examId}` | Exam detail |
+| `POST` | `/` | Create exam |
+| `POST` | `/{examId}/start` | Transition exam to LIVE + notifications |
+
+### Lecturer analytics — `/api/lecturer/analytics` (LECTURER)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/overview?period=7D\|30D\|3M` | Analytics dashboard (KPIs, trends, top behaviors) |
+
+### Devices — `/api/devices` (authenticated)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/token` | Register FCM device token |
 
 ---
 
-## Request / Response Examples
+## Demo data (Neon)
 
-### Health Check
+After running seed scripts:
 
-```bash
-curl https://observerr-production.up.railway.app/health
-```
-```json
-{
-  "status": "UP",
-  "app": "Observerr Backend",
-  "timestamp": "2026-07-02T09:00:00",
-  "version": "1.0.0"
-}
-```
+| Account | Institutional ID | Role |
+|---|---|---|
+| Demo student | `STU-12345` | STUDENT |
+| Demo lecturer | `STU-67890` | LECTURER |
 
-### Register
-
-```bash
-curl -X POST https://observerr-production.up.railway.app/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fullName": "Dr. Kwame Mensah",
-    "email": "kwame@university.edu",
-    "password": "password123",
-    "role": "LECTURER"
-  }'
-```
-
-Response `201 Created`:
-```json
-{
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ...",
-  "tokenType": "Bearer",
-  "role": "LECTURER",
-  "fullName": "Dr. Kwame Mensah",
-  "expiresIn": 86400000
-}
-```
-
-### Login
-
-```bash
-curl -X POST https://observerr-production.up.railway.app/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "kwame@university.edu", "password": "password123"}'
-```
-
-Response `200 OK`: same shape as register.
-
-### Get Current User
-
-```bash
-curl https://observerr-production.up.railway.app/api/auth/me \
-  -H "Authorization: Bearer <access_token>"
-```
-```json
-{
-  "id": 1,
-  "email": "kwame@university.edu",
-  "fullName": "Dr. Kwame Mensah",
-  "role": "LECTURER",
-  "createdAt": "2026-07-02T09:00:00"
-}
-```
-
-### Refresh Token
-
-```bash
-curl -X POST https://observerr-production.up.railway.app/api/auth/refresh \
-  -H "Authorization: Bearer <refresh_token>"
-```
-
-### Error Responses
-
-All errors follow this shape:
-```json
-{
-  "error": "ERROR_CODE",
-  "message": "Human readable message",
-  "timestamp": "2026-07-02T10:00:00"
-}
-```
-
-Validation errors (400) include a field-level `errors` map:
-```json
-{
-  "error": "VALIDATION_FAILED",
-  "message": "Request validation failed",
-  "errors": {
-    "email": "Must be a valid email address",
-    "password": "Password must be at least 8 characters"
-  },
-  "timestamp": "2026-07-02T10:00:00"
-}
-```
+Legacy proctoring demo includes **Alex Mercer** (numeric session IDs). Live integrity sessions use **UUID** session IDs from `POST .../sessions`.
 
 ---
 
-## HTTP Status Codes
-
-| Code | Scenario |
-|---|---|
-| `200` | Successful login / refresh / info |
-| `201` | Successful registration |
-| `400` | Validation errors |
-| `401` | Missing / invalid / expired token, wrong credentials |
-| `403` | Valid token but insufficient role |
-| `409` | Email already registered |
-| `500` | Unexpected server error |
-
----
-
-## Project Structure
+## Project structure
 
 ```
-com.backend.observerr/
-├── config/
-│   ├── SecurityConfig.java          — filter chain, RBAC rules, beans
-│   ├── CorsConfig.java              — CORS for localhost:* (dev) and production
-│   └── HealthController.java        — GET /health
-├── auth/
-│   ├── controller/AuthController.java
-│   ├── service/
-│   │   ├── AuthService.java         — register, login, refreshToken
-│   │   ├── JwtService.java          — token generation & validation
-│   │   └── CustomUserDetailsService.java
-│   ├── filter/JwtAuthenticationFilter.java
-│   ├── dto/
-│   │   ├── RegisterRequest.java
-│   │   ├── LoginRequest.java
-│   │   └── AuthResponse.java
-│   └── model/
-│       ├── User.java                — JPA entity + UserDetails
-│       ├── Role.java                — STUDENT / LECTURER / ADMIN
-│       └── UserRepository.java
-├── exception/GlobalExceptionHandler.java
-├── student/StudentController.java   — GET /api/student/hello
-└── lecturer/LecturerController.java — GET /api/lecturer/hello
+src/main/java/com/backend/observerr/
+├── auth/              Login, JWT, users
+├── account/           Profile, password, avatar
+├── student/
+│   ├── results/       Completed assessments API
+│   ├── stats/         Dashboard stats
+│   └── exams/         Student exam list/detail
+├── integrity/         Exam sessions + integrity event ingest
+├── exam/              Lecturer exam CRUD + lifecycle
+├── lecturer/
+│   ├── students/      Roster + session timeline
+│   └── analytics/     Analytics overview API
+├── notification/      FCM + device tokens
+├── config/            Security, CORS, cache, Firebase, Cloudinary
+└── exception/         Global error handling
+
+src/main/resources/db/migration/   Flyway SQL (V1–V13)
+scripts/                           Manual Neon seed runners (.mjs)
 ```
 
 ---
 
-## Security Design
+## Environment variables (full)
 
-- Passwords hashed with BCrypt (cost factor 12) — never stored or returned plain
-- JWT access tokens expire in 24h; refresh tokens expire in 7 days
-- Same error message for wrong email and wrong password (`"Invalid credentials"`) — prevents user enumeration
-- Stateless sessions — no `HttpSession` anywhere
-- CSRF disabled (stateless JWT APIs do not need it)
-- CORS uses `allowedOriginPatterns("http://localhost:*")` for local dev; set `SPRING_WEB_CORS_ALLOWED_ORIGINS` to your production frontend URL
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SPRING_DATASOURCE_URL` | Yes | — | JDBC URL |
+| `SPRING_DATASOURCE_USERNAME` | Yes | — | DB user |
+| `SPRING_DATASOURCE_PASSWORD` | Yes | — | DB password |
+| `JWT_SECRET` | Yes* | local dev fallback | Signing secret (min 32 chars) |
+| `PORT` / `SERVER_PORT` | No | `8080` | HTTP port (Railway sets `PORT`) |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `validate` | Use `validate` with Flyway |
+| `SPRING_WEB_CORS_ALLOWED_ORIGINS` | No | localhost + Pages dev | CORS origins |
+| `REDIS_URL` | No | — | Refresh-token blocklist (in-memory if empty) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | No | — | FCM; disabled if empty |
+| `CLOUDINARY_CLOUD_NAME` | No | — | Profile pictures |
+| `CLOUDINARY_API_KEY` | No | — | Profile pictures |
+| `CLOUDINARY_API_SECRET` | No | — | Profile pictures |
+| `APP_FRONTEND_BASE_URL` | No | Pages dev URL | FCM deep links |
+| `AUTH_COOKIE_SECURE` | No | `false` | Cookie `Secure` flag |
+| `AUTH_COOKIE_SAME_SITE` | No | `Lax` | Cookie `SameSite` |
+| `JWT_EXPIRATION` | No | 86400000 | Access token TTL (ms) |
+| `JWT_REFRESH_EXPIRATION` | No | 604800000 | Refresh token TTL (ms) |
+
+\*Required in production.
 
 ---
 
-## Postman Collection
+## Security notes
 
-Import `postman/Observerr_Auth.postman_collection.json` into Postman.
+- Passwords: BCrypt (cost 12)
+- Stateless JWT sessions; optional Redis refresh-token blocklist
+- CSRF disabled (token API)
+- `/health` and auth routes are public; role enforced on `/api/student/**`, `/api/lecturer/**`
+- Integrity ingest trusts client `pointsDeducted` / `scoreAfter` for v1
 
-Set up a Postman environment with `baseUrl = https://observerr-production.up.railway.app` (or `http://localhost:8080` for local). Run **Register** or **Login** first — the test scripts auto-save `accessToken` and `refreshToken` to your environment.
+---
+
+## Postman
+
+Import `postman/Observerr_Auth.postman_collection.json`. Set `baseUrl` to production or `http://localhost:8080`.
