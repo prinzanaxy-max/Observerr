@@ -16,6 +16,7 @@ public class CacheConfig {
 
     public static final String STUDENT_RESULTS_PAGE_CACHE = "studentResultsPage";
     public static final String STUDENT_RESULTS_SUMMARY_CACHE = "studentResultsSummary";
+    public static final String LECTURER_ANALYTICS_OVERVIEW_CACHE = "lecturerAnalyticsOverview";
 
     @Bean
     CacheManager cacheManager(
@@ -23,7 +24,8 @@ public class CacheConfig {
             @Value("${cache.student-results.max-size:500}") long maxSize) {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 STUDENT_RESULTS_PAGE_CACHE,
-                STUDENT_RESULTS_SUMMARY_CACHE
+                STUDENT_RESULTS_SUMMARY_CACHE,
+                LECTURER_ANALYTICS_OVERVIEW_CACHE
         );
         cacheManager.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
