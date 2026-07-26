@@ -34,7 +34,7 @@ public class LecturerStudentsController {
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<ProctoringSessionDetailDto> getSessionDetail(
             @AuthenticationPrincipal User lecturer,
-            @PathVariable Long sessionId) {
+            @PathVariable String sessionId) {
         return ResponseEntity.ok(lecturerStudentsService.getSessionDetail(lecturer, sessionId));
     }
 }

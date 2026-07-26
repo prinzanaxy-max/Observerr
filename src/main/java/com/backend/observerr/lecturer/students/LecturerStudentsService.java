@@ -2,6 +2,11 @@ package com.backend.observerr.lecturer.students;
 
 import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.model.UserRepository;
+import com.backend.observerr.exam.model.Exam;
+import com.backend.observerr.exam.repository.ExamRepository;
+import com.backend.observerr.integrity.IntegritySessionService;
+import com.backend.observerr.integrity.model.ExamSession;
+import com.backend.observerr.integrity.model.IntegrityEvent;
 import com.backend.observerr.lecturer.students.dto.*;
 import com.backend.observerr.lecturer.students.model.LecturerCourse;
 import com.backend.observerr.lecturer.students.model.ProctoringSession;
@@ -18,10 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +41,8 @@ public class LecturerStudentsService {
     private final ProctoringSessionRepository proctoringSessionRepository;
     private final ProctoringSessionEventRepository proctoringSessionEventRepository;
     private final UserRepository userRepository;
+    private final IntegritySessionService integritySessionService;
+    private final ExamRepository examRepository;
 
     @Transactional(readOnly = true)
     public LecturerStudentsPageDto getStudents(User lecturer, int page, int size, String search, String course) {
@@ -75,7 +84,55 @@ public class LecturerStudentsService {
     }
 
     @Transactional(readOnly = true)
-    public ProctoringSessionDetailDto getSessionDetail(User lecturer, Long sessionId) {
+    public ProctoringSessionDetailDto getSessionDetail(User lecturer, String sessionId) {
+        if (isUuid(sessionId)) {
+            return getExamSessionDetail(lecturer, UUID.fromString(sessionId));
+        }
+        try {
+            return getLegacyProctoringSessionDetail(lecturer, Long.parseLong(sessionId));
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found");
+        }
+    }
+
+    private ProctoringSessionDetailDto getExamSessionDetail(User lecturer, UUID sessionId) {
+        ExamSession session = integritySessionService.getSessionForLecturer(lecturer, sessionId);
+        Exam exam = examRepository.findById(session.getExamId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
+        User student = userRepository.findById(session.getStudentId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student not found"));
+
+        List<ProctoringSessionEventDto> events = integritySessionService.getSessionEvents(sessionId)
+                .stream()
+                .map(this::toIntegrityEventDto)
+                .toList();
+
+        int integrityScore = session.getFinalScore() != null
+                ? session.getFinalScore()
+                : events.isEmpty() ? session.getStartingScore() : events.get(events.size() - 1).getScoreAfter();
+
+        return ProctoringSessionDetailDto.builder()
+                .sessionId(session.getId().toString())
+                .studentId(student.getId())
+                .studentNumber(formatStudentNumber(student.getInstitutionalId()))
+                .studentName(fullName(student.getFirstName(), student.getLastName()))
+                .initials(initials(student.getFirstName(), student.getLastName()))
+                .assessmentTitle(exam.getTitle())
+                .courseCode(exam.getCourseCode())
+                .courseName(exam.getCourseName())
+                .courseLabel(formatCourseLabel(exam.getCourseCode(), exam.getCourseName()))
+                .integrityScore(integrityScore)
+                .requiresReview(session.isRequiresReview())
+                .duration(formatDuration(integritySessionService.computeDurationMinutes(session)))
+                .totalFlags(session.getTotalEvents())
+                .deviceFlags(countEventsWithCodes(events, "DEVICE", "TAB_BLUR_NO_FACE", "CAMERA_FEED_FROZEN", "CAMERA_PERMISSION_LOST"))
+                .absenceFlags(countEventsWithCodes(events, "FACE_ABSENT", "TAB_BLUR_NO_FACE"))
+                .sessionDate(DATE_FORMAT.format(session.getStartedAt().atZone(ZoneId.systemDefault()).toLocalDate()))
+                .events(events)
+                .build();
+    }
+
+    private ProctoringSessionDetailDto getLegacyProctoringSessionDetail(User lecturer, Long sessionId) {
         ProctoringSession session = proctoringSessionRepository.findByIdAndLecturerId(sessionId, lecturer.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
 
@@ -88,19 +145,18 @@ public class LecturerStudentsService {
                 .map(this::toEventDto)
                 .toList();
 
-        String fullName = fullName(student.getFirstName(), student.getLastName());
-
         return ProctoringSessionDetailDto.builder()
-                .sessionId(session.getId())
+                .sessionId(String.valueOf(session.getId()))
                 .studentId(student.getId())
                 .studentNumber(formatStudentNumber(student.getInstitutionalId()))
-                .studentName(fullName)
+                .studentName(fullName(student.getFirstName(), student.getLastName()))
                 .initials(initials(student.getFirstName(), student.getLastName()))
                 .assessmentTitle(session.getAssessmentTitle())
                 .courseCode(session.getCourseCode())
                 .courseName(session.getCourseName())
                 .courseLabel(session.getCourseCode() + ": " + session.getCourseName())
                 .integrityScore(session.getIntegrityScore())
+                .requiresReview(session.getIntegrityScore() < 60)
                 .duration(formatDuration(session.getDurationMinutes()))
                 .totalFlags(session.getTotalFlags())
                 .deviceFlags(session.getDeviceFlags())
@@ -137,14 +193,78 @@ public class LecturerStudentsService {
     private ProctoringSessionEventDto toEventDto(ProctoringSessionEvent event) {
         return ProctoringSessionEventDto.builder()
                 .id(event.getId())
+                .eventCode(event.getEventType())
                 .time(TIME_FORMAT.format(event.getEventTime()))
+                .timestamp(null)
                 .eventType(event.getEventType())
-                .severity(event.getSeverity())
+                .severity(mapLegacySeverity(event.getSeverity()))
                 .title(event.getTitle())
                 .description(event.getDescription())
                 .pointsDeducted(event.getPointsDeducted() != null ? event.getPointsDeducted().intValue() : null)
+                .scoreAfter(null)
+                .durationMs(null)
                 .hasSnapshot(event.isHasSnapshot())
                 .build();
+    }
+
+    private ProctoringSessionEventDto toIntegrityEventDto(IntegrityEvent event) {
+        return ProctoringSessionEventDto.builder()
+                .id(event.getId())
+                .eventCode(event.getEventCode())
+                .time(TIME_FORMAT.format(event.getOccurredAt().atZone(ZoneId.systemDefault()).toLocalTime()))
+                .timestamp(event.getOccurredAt().toString())
+                .eventType(event.getEventCode())
+                .severity(event.getSeverity())
+                .title(event.getTitle())
+                .description(event.getDescription())
+                .pointsDeducted(event.getPointsDeducted())
+                .scoreAfter(event.getScoreAfter())
+                .durationMs(event.getDurationMs())
+                .hasSnapshot(false)
+                .build();
+    }
+
+    private String mapLegacySeverity(String severity) {
+        return switch (severity) {
+            case "SUCCESS" -> "INFO";
+            case "WARNING" -> "MEDIUM";
+            case "DANGER" -> "HIGH";
+            case "NEUTRAL" -> "INFO";
+            default -> severity;
+        };
+    }
+
+    private boolean isUuid(String value) {
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    private int countEventsWithCodes(List<ProctoringSessionEventDto> events, String... codes) {
+        return (int) events.stream()
+                .filter(event -> {
+                    String code = event.getEventCode();
+                    if (code == null) {
+                        return false;
+                    }
+                    for (String candidate : codes) {
+                        if (code.contains(candidate)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                })
+                .count();
+    }
+
+    private String formatCourseLabel(String courseCode, String courseName) {
+        if (courseCode == null || courseCode.isBlank()) {
+            return courseName;
+        }
+        return courseCode + ": " + courseName;
     }
 
     private String normalizeCourseFilter(String course) {

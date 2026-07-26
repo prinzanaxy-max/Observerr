@@ -11,7 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ProctoringSessionDetailDto {
 
-    private final Long sessionId;
+    private final String sessionId;
     private final Long studentId;
     private final String studentNumber;
     private final String studentName;
@@ -21,6 +21,7 @@ public class ProctoringSessionDetailDto {
     private final String courseName;
     private final String courseLabel;
     private final int integrityScore;
+    private final boolean requiresReview;
     private final String duration;
     private final int totalFlags;
     private final int deviceFlags;
