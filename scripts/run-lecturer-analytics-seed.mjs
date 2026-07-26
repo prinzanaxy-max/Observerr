@@ -2,13 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { resolveConnectionString } from "./db-connection.mjs";
 
 const { Client } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = resolveConnectionString();
 if (!connectionString) {
-  console.error("DATABASE_URL is required");
+  console.error("DATABASE_URL or SPRING_DATASOURCE_* env vars are required");
   process.exit(1);
 }
 
