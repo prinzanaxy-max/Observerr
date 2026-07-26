@@ -5,6 +5,7 @@ import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.model.UserRepository;
 import com.backend.observerr.auth.service.JwtService;
 import com.backend.observerr.exam.model.Exam;
+import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -92,6 +94,8 @@ class IntegritySessionIntegrationTest {
                 .lecturerId(lecturer.getId())
                 .courseCode("CS401")
                 .courseName("Software Integrity")
+                .status(ExamStatus.LIVE)
+                .startTime(Instant.now())
                 .build());
 
         studentToken = jwtService.generateAccessToken(student);
