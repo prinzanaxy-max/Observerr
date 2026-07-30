@@ -1,6 +1,8 @@
 package com.backend.observerr.lecturer.students;
 
 import com.backend.observerr.auth.model.User;
+import com.backend.observerr.lecturer.dashboard.LecturerDashboardService;
+import com.backend.observerr.lecturer.dashboard.dto.NeedsReviewItemDto;
 import com.backend.observerr.lecturer.students.dto.LecturerStudentsPageDto;
 import com.backend.observerr.lecturer.students.dto.ProctoringSessionDetailDto;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class LecturerStudentsController {
 
     private final LecturerStudentsService lecturerStudentsService;
+    private final LecturerDashboardService lecturerDashboardService;
 
     @GetMapping
     public ResponseEntity<LecturerStudentsPageDto> getStudents(
@@ -36,5 +39,13 @@ public class LecturerStudentsController {
             @AuthenticationPrincipal User lecturer,
             @PathVariable String sessionId) {
         return ResponseEntity.ok(lecturerStudentsService.getSessionDetail(lecturer, sessionId));
+    }
+
+    @GetMapping("/needs-review")
+    public ResponseEntity<java.util.List<NeedsReviewItemDto>> getNeedsReview(
+            @AuthenticationPrincipal User lecturer,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Long examId) {
+        return ResponseEntity.ok(lecturerDashboardService.getNeedsReview(lecturer, limit, examId));
     }
 }

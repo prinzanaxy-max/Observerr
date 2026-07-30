@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -42,6 +43,17 @@ public class LecturerAnalyticsService {
         overview.getBehaviors().size();
 
         return toResponse(overview);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<LecturerAnalyticsOverviewResponse> findOverview(User lecturer, String period) {
+        String normalizedPeriod = normalizePeriod(period);
+        return overviewRepository.findByLecturerIdAndPeriod(lecturer.getId(), normalizedPeriod)
+                .map(overview -> {
+                    overview.getTrendPoints().size();
+                    overview.getBehaviors().size();
+                    return toResponse(overview);
+                });
     }
 
     private String normalizePeriod(String period) {

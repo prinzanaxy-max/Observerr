@@ -2,16 +2,20 @@
   "info": {
     "name": "Observerr API",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "description": "Complete API collection for Observerr — online exam integrity monitoring platform.\n\nSETUP:\n1. Select the 'Observerr' environment (top right)\n2. Run Register or Login first — tokens are saved automatically\n3. All other requests use {{accessToken}} / {{refreshToken}} from the environment",
+    "description": "Complete Observerr backend API — auth, student, lecturer, integrity ingest, analytics.\n\n**Setup:** Import `Observerr.postman_environment.json`, select the Observerr environment, then run **Login (Demo Lecturer)** or **Login (Demo Student)**.\n\nProduction: `https://observerr-production.up.railway.app`\nFrontend: `https://observerr-ui.pages.dev`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "https://observerr-production.up.railway.app",
-      "type": "string"
-    }
+    { "key": "baseUrl", "value": "https://observerr-production.up.railway.app" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "examId", "value": "1" },
+    { "key": "sessionId", "value": "" }
   ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
   "item": [
     {
       "name": "Health",
@@ -19,28 +23,11 @@
         {
           "name": "Health Check",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Status is UP\", () => pm.expect(pm.response.json().status).to.eql('UP'));",
-                  "pm.test(\"App is Observerr Backend\", () => pm.expect(pm.response.json().app).to.eql('Observerr Backend'));",
-                  "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "{{baseUrl}}/health"
+          }
         }
       ]
     },
@@ -48,201 +35,199 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Register (Lecturer)",
+          "name": "Login (Demo Student)",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"institutionalId\": \"STU-12345\",\n  \"password\": \"YOUR_PASSWORD\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
-            }
+            "url": "{{baseUrl}}/api/auth/login"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
-                  "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
-                  "pm.test(\"Token type is Bearer\", () => pm.expect(pm.response.json().tokenType).to.eql('Bearer'));",
-                  "pm.test(\"Role is LECTURER\", () => pm.expect(pm.response.json().role).to.eql('LECTURER'));",
-                  "pm.test(\"Has expiresIn\", () => pm.expect(pm.response.json().expiresIn).to.be.a('number'));",
-                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
-                  "console.log('Tokens saved to environment');"
-                ],
-                "type": "text/javascript"
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "  pm.environment.set('accessToken', j.accessToken);",
+                "  pm.environment.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          ]
+          }]
+        },
+        {
+          "name": "Login (Demo Lecturer)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionalId\": \"STU-67890\",\n  \"password\": \"YOUR_PASSWORD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "  pm.environment.set('accessToken', j.accessToken);",
+                "  pm.environment.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
         },
         {
           "name": "Register (Student)",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"STU-001\",\n  \"email\": \"kofi@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"institutionalId\": \"STU-001\",\n  \"email\": \"student@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
-            }
+            "url": "{{baseUrl}}/api/auth/register"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
-                  "pm.test(\"Role is STUDENT\", () => pm.expect(pm.response.json().role).to.eql('STUDENT'));",
-                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
-                  "console.log('Student tokens saved to environment');"
-                ],
-                "type": "text/javascript"
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          ]
+          }]
         },
         {
-          "name": "Login",
+          "name": "Register (Lecturer)",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"password\": \"password123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"lecturer@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
-            }
+            "url": "{{baseUrl}}/api/auth/register"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Has access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
-                  "pm.test(\"Has refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
-                  "pm.test(\"Has institutionalId\", () => pm.expect(pm.response.json().institutionalId).to.be.a('string'));",
-                  "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
-                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
-                  "console.log('Logged in as ' + pm.response.json().role + ' — tokens saved');"
-                ],
-                "type": "text/javascript"
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          ]
+          }]
         },
         {
           "name": "Refresh Token",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{refreshToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "refresh"]
-            }
+            "header": [{ "key": "Authorization", "value": "Bearer {{refreshToken}}" }],
+            "url": "{{baseUrl}}/api/auth/refresh"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Has new access token\", () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
-                  "pm.test(\"Has new refresh token\", () => pm.expect(pm.response.json().refreshToken).to.be.a('string'));",
-                  "pm.environment.set(\"accessToken\", pm.response.json().accessToken);",
-                  "pm.environment.set(\"refreshToken\", pm.response.json().refreshToken);",
-                  "console.log('Tokens refreshed and saved');"
-                ],
-                "type": "text/javascript"
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          ]
+          }]
         },
         {
-          "name": "Me (Current User)",
+          "name": "Logout",
           "request": {
-            "method": "GET",
+            "auth": { "type": "noauth" },
+            "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "me"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Has id\", () => pm.expect(pm.response.json().id).to.be.a('number'));",
-                  "pm.test(\"Has email\", () => pm.expect(pm.response.json().email).to.be.a('string'));",
-                  "pm.test(\"Has institutionalId\", () => pm.expect(pm.response.json().institutionalId).to.be.a('string'));",
-                  "pm.test(\"Has role\", () => pm.expect(pm.response.json().role).to.be.a('string'));",
-                  "pm.test(\"No password in response\", () => pm.expect(pm.response.json().password).to.be.undefined);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "body": { "mode": "raw", "raw": "{ \"allDevices\": false }" },
+            "url": "{{baseUrl}}/api/auth/logout"
+          }
+        },
+        {
+          "name": "Me (Auth)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/auth/me" }
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/account/me" }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": "{{baseUrl}}/api/account/me"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"oldPass1\",\n  \"newPassword\": \"newPass2\",\n  \"confirmPassword\": \"newPass2\"\n}"
+            },
+            "url": "{{baseUrl}}/api/account/me/password"
+          }
+        },
+        {
+          "name": "Upload Profile Picture",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": [] }]
+            },
+            "url": "{{baseUrl}}/api/account/me/profile-picture"
+          }
+        },
+        {
+          "name": "Delete Profile Picture",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/account/me/profile-picture" }
         }
       ]
     },
@@ -250,125 +235,241 @@
       "name": "Student",
       "item": [
         {
-          "name": "Student Hello (as student — expect 200)",
+          "name": "List Results",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
             "url": {
-              "raw": "{{baseUrl}}/api/student/hello",
+              "raw": "{{baseUrl}}/api/student/results?page=0&size=10&sort=MOST_RECENT",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "student", "hello"]
+              "path": ["api", "student", "results"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "sort", "value": "MOST_RECENT", "description": "MOST_RECENT | OLDEST | HIGHEST_INTEGRITY | LOWEST_INTEGRITY" }
+              ]
             }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 200 with student token\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Correct greeting\", () => pm.expect(pm.response.text()).to.include('Student'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+          }
         },
         {
-          "name": "Student Hello (as lecturer — expect 403)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/student/hello",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "student", "hello"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 403 Forbidden\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Error is Forbidden\", () => pm.expect(pm.response.json().error).to.eql('Forbidden'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+          "name": "Results Summary",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/results/summary" }
+        },
+        {
+          "name": "Dashboard Stats",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/stats" }
+        },
+        {
+          "name": "List Exams",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams" }
+        },
+        {
+          "name": "Get Exam Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams/{{examId}}" }
         }
       ]
     },
     {
-      "name": "Lecturer",
+      "name": "Integrity (Student)",
       "item": [
         {
-          "name": "Lecturer Hello (as lecturer — expect 200)",
+          "name": "Start Session",
           "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/lecturer/hello",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "lecturer", "hello"]
-            }
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"startingScore\": 100\n}" },
+            "url": "{{baseUrl}}/api/student/exams/{{examId}}/sessions"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 200 with lecturer token\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Correct greeting\", () => pm.expect(pm.response.text()).to.include('Lecturer'));"
-                ],
-                "type": "text/javascript"
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  pm.collectionVariables.set('sessionId', pm.response.json().sessionId);",
+                "  pm.environment.set('sessionId', pm.response.json().sessionId);",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          ]
+          }]
         },
         {
-          "name": "Lecturer Hello (as student — expect 403)",
+          "name": "Batch Integrity Events",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"clientEventId\": \"11111111-1111-1111-1111-111111111111\",\n      \"eventCode\": \"TAB_BLUR\",\n      \"title\": \"Tab switched away\",\n      \"description\": \"Student left exam tab\",\n      \"severity\": \"MEDIUM\",\n      \"pointsDeducted\": 5,\n      \"scoreAfter\": 95,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:05:30Z\",\n      \"durationMs\": 3000,\n      \"metadata\": { \"tabTitle\": \"Google\" }\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/integrity-events"
+          }
+        },
+        {
+          "name": "Complete Session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"summary\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"examId\": {{examId}},\n    \"startedAt\": \"2026-07-28T14:00:00Z\",\n    \"endedAt\": \"2026-07-28T16:00:00Z\",\n    \"startingScore\": 100,\n    \"finalScore\": 87,\n    \"totalEvents\": 1,\n    \"totalDeductions\": 13,\n    \"requiresReview\": false,\n    \"proctoringAvailable\": true\n  },\n  \"events\": []\n}"
+            },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/complete"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Exams",
+      "item": [
+        {
+          "name": "List Exams",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
             "url": {
-              "raw": "{{baseUrl}}/api/lecturer/hello",
+              "raw": "{{baseUrl}}/api/lecturer/exams?status=ALL",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "lecturer", "hello"]
+              "path": ["api", "lecturer", "exams"],
+              "query": [
+                { "key": "status", "value": "ALL", "description": "ALL | LIVE | UPCOMING | COMPLETED" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
             }
+          }
+        },
+        {
+          "name": "Get Exam Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}" }
+        },
+        {
+          "name": "Create Exam",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Midterm Exam\",\n  \"course\": \"CS201: Data Structures\",\n  \"startAt\": \"2026-08-01T14:00:00\",\n  \"durationMinutes\": 120,\n  \"security\": {\n    \"webcamMonitoring\": true,\n    \"tabSwitchTracking\": true,\n    \"blockCopyPaste\": false\n  },\n  \"publish\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/lecturer/exams"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 403 Forbidden\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Error is Forbidden\", () => pm.expect(pm.response.json().error).to.eql('Forbidden'));"
-                ],
-                "type": "text/javascript"
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  pm.collectionVariables.set('examId', pm.response.json().id);",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          ]
+          }]
+        },
+        {
+          "name": "Start Exam (Go Live)",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/start" }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Students",
+      "item": [
+        {
+          "name": "List Students",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/students?page=0&size=10&course=ALL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "students"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "course", "value": "ALL" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Session Detail (UUID or legacy ID)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/students/sessions/{{sessionId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Home",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/dashboard" }
+        },
+        {
+          "name": "Needs Review",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/students/needs-review?limit=10" }
+        },
+        {
+          "name": "Live Sessions",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/live-sessions" }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Proctoring",
+      "item": [
+        {
+          "name": "List Live Exams",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/proctoring/exams" }
+        },
+        {
+          "name": "Exam Feeds",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/proctoring/exams/{{examId}}/feeds" }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Analytics",
+      "item": [
+        {
+          "name": "Overview (7D)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/analytics/overview?period=7D",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "analytics", "overview"],
+              "query": [{ "key": "period", "value": "7D", "description": "7D | 30D | 3M" }]
+            }
+          }
+        },
+        {
+          "name": "Overview (30D)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=30D"
+          }
+        },
+        {
+          "name": "Overview (3M)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=3M"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Devices",
+      "item": [
+        {
+          "name": "Register FCM Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token-from-firebase\"\n}"
+            },
+            "url": "{{baseUrl}}/api/devices/token"
+          }
         }
       ]
     },
@@ -376,214 +477,36 @@
       "name": "Error Cases",
       "item": [
         {
-          "name": "Register Duplicate Email (expect 409)",
+          "name": "Protected Route Without Token",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"kwame@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 409 Conflict\", () => pm.response.to.have.status(409));",
-                  "pm.test(\"Error is CONFLICT\", () => pm.expect(pm.response.json().error).to.eql('CONFLICT'));",
-                  "pm.test(\"Message is correct\", () => pm.expect(pm.response.json().message).to.eql('Email already registered'));",
-                  "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/me"
+          }
         },
         {
-          "name": "Login Wrong Password (expect 401)",
+          "name": "Login Wrong Password",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"password\": \"wrongpassword\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"institutionalId\": \"STU-12345\",\n  \"password\": \"wrongpassword\"\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Error is UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql('UNAUTHORIZED'));",
-                  "pm.test(\"Generic message hides which field was wrong\", () => pm.expect(pm.response.json().message).to.eql('Invalid credentials'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "{{baseUrl}}/api/auth/login"
+          }
         },
         {
-          "name": "Protected Route Without Token (expect 401)",
+          "name": "Analytics Unsupported Period",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "me"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Error is Unauthorized\", () => pm.expect(pm.response.json().error).to.eql('Unauthorized'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=Custom"
+          }
         },
         {
-          "name": "Register Missing Fields (expect 400)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"invalid-email\",\n  \"password\": \"short\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 400 Bad Request\", () => pm.response.to.have.status(400));",
-                  "pm.test(\"Error is VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql('VALIDATION_FAILED'));",
-                  "pm.test(\"Has field errors map\", () => pm.expect(pm.response.json().errors).to.be.an('object'));",
-                  "pm.test(\"Has timestamp\", () => pm.expect(pm.response.json().timestamp).to.be.a('string'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Login Non-Existent Email (expect 401)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"UNKNOWN-999\",\n  \"password\": \"password123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Same message as wrong password\", () => pm.expect(pm.response.json().message).to.eql('Invalid credentials'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Refresh With Invalid Token (expect 401)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer this.is.not.a.real.jwt"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "refresh"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status 401 Unauthorized\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Error is UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql('UNAUTHORIZED'));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+          "name": "Student Route as Lecturer (403)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams" }
         }
       ]
     }

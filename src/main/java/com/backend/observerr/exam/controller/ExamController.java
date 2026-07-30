@@ -6,6 +6,8 @@ import com.backend.observerr.exam.dto.LecturerExamDto;
 import com.backend.observerr.exam.dto.LecturerExamListResponse;
 import com.backend.observerr.exam.service.ExamLifecycleService;
 import com.backend.observerr.exam.service.LecturerExamService;
+import com.backend.observerr.lecturer.dashboard.LecturerLiveMonitoringService;
+import com.backend.observerr.lecturer.dashboard.dto.LiveExamSessionsResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,7 @@ public class ExamController {
 
     private final ExamLifecycleService examLifecycleService;
     private final LecturerExamService lecturerExamService;
+    private final LecturerLiveMonitoringService lecturerLiveMonitoringService;
 
     @GetMapping
     @PreAuthorize("hasRole('LECTURER')")
@@ -65,5 +68,13 @@ public class ExamController {
                 "message", "Exam start triggered",
                 "examId", examId
         ));
+    }
+
+    @GetMapping("/{examId}/live-sessions")
+    @PreAuthorize("hasRole('LECTURER')")
+    public ResponseEntity<LiveExamSessionsResponse> getLiveSessions(
+            @AuthenticationPrincipal User lecturer,
+            @PathVariable Long examId) {
+        return ResponseEntity.ok(lecturerLiveMonitoringService.getLiveSessions(lecturer, examId));
     }
 }

@@ -10,6 +10,154 @@ Spring Boot backend for **Observerr** — an online exam integrity monitoring pl
 
 ---
 
+## Frontend integration (start here)
+
+### Auth
+
+All protected routes require:
+
+```
+Authorization: Bearer <accessToken>
+```
+
+Obtain tokens via `POST /api/auth/login`. Refresh via `POST /api/auth/refresh` (send refresh token in `Authorization` header).
+
+### Demo accounts (Neon)
+
+| Role | Institutional ID | Use for |
+|---|---|---|
+| Student | `STU-12345` | Results, exams, integrity ingest |
+| Lecturer | `STU-67890` | Exams, students, analytics |
+
+Ask backend team for passwords.
+
+### Postman
+
+Import both files from `postman/`:
+
+1. `Observerr_Auth.postman_collection.json` — all endpoints
+2. `Observerr.postman_environment.json` — `baseUrl` + token variables
+
+See `postman/README.md` for test flows.
+
+### Standard error response
+
+```json
+{
+  "error": "NOT_FOUND",
+  "message": "Exam not found",
+  "timestamp": "2026-07-28T12:00:00"
+}
+```
+
+Validation errors (`400`):
+
+```json
+{
+  "error": "VALIDATION_FAILED",
+  "message": "Request validation failed",
+  "errors": { "fieldName": "error message" },
+  "timestamp": "2026-07-28T12:00:00"
+}
+```
+
+| Status | Meaning |
+|---|---|
+| `401` | Missing/expired token |
+| `403` | Wrong role (e.g. student hitting `/api/lecturer/**`) |
+| `404` | Resource not found |
+| `409` | Conflict (duplicate register, session already in progress) |
+| `500` | Server error — check Railway logs; analytics may need V13 seed |
+
+### Key response shapes
+
+**Login** (`POST /api/auth/login` → `200`):
+
+```json
+{
+  "accessToken": "eyJ...",
+  "refreshToken": "eyJ...",
+  "tokenType": "Bearer",
+  "role": "LECTURER",
+  "institutionalId": "STU-67890",
+  "expiresIn": 86400000
+}
+```
+
+**Student exams list** (`GET /api/student/exams` → `200`):
+
+```json
+{
+  "exams": [{
+    "id": 1,
+    "title": "Midterm Exam",
+    "courseLabel": "CS201: Data Structures",
+    "status": "LIVE",
+    "canTake": true,
+    "security": { "webcamMonitoring": true, "tabSwitchTracking": true, "blockCopyPaste": false }
+  }],
+  "totalElements": 3
+}
+```
+
+**Analytics overview** (`GET /api/lecturer/analytics/overview?period=7D` → `200`):
+
+```json
+{
+  "period": "7D",
+  "totalExamsMonitored": { "value": 312, "changePercent": 8.0, "changeDirection": "UP", "changeLabel": "from last week" },
+  "totalFlaggedEvents": { "value": 89, "changePercent": 3.0, "changeDirection": "UP", "changeLabel": "from last week" },
+  "avgIntegrityScore": { "value": 95.1, "changePercent": 0.4, "changeDirection": "UP", "changeLabel": "vs last week" },
+  "mostCommonFlag": { "label": "Face Not Visible", "sharePercent": 45, "icon": "visibility_off" },
+  "trends": {
+    "title": "Integrity Event Trends",
+    "subtitle": "Daily flagged events vs monitored sessions",
+    "granularity": "DAY",
+    "points": [{ "label": "Thu", "monitoredSessions": 60, "flaggedEvents": 28, "alert": true }]
+  },
+  "topBehaviors": [{ "behaviorCode": "FACE_NOT_VISIBLE", "label": "Face Not Visible", "eventCount": 43, "icon": "visibility_off", "tone": "error" }]
+}
+```
+
+> **Analytics `period`:** only `7D`, `30D`, `3M` — `Custom` is not supported yet.
+
+**Lecturer dashboard** (`GET /api/lecturer/dashboard` → `200`):
+
+```json
+{
+  "liveExam": {
+    "examId": 1,
+    "title": "Advanced Calculus Final",
+    "courseCode": "MATH401",
+    "status": "LIVE",
+    "remainingSeconds": 5400,
+    "activeStudents": 4,
+    "highRiskCount": 2,
+    "avgIntegrityScore": 88.0,
+    "liveMonitoringPath": "/lecturer/exams/1/live"
+  },
+  "needsReview": [],
+  "examTabs": { "live": [], "upcoming": [], "completed": [] },
+  "integrityTrend": { "changeLabel": "+0.4% vs last week", "changeDirection": "UP", "points": [12, 28, 15] },
+  "topFlaggedBehaviors": []
+}
+```
+
+**Integrity session start** (`POST /api/student/exams/{examId}/sessions` → `201`):
+
+```json
+{
+  "sessionId": "uuid",
+  "examId": 1,
+  "status": "IN_PROGRESS",
+  "startingScore": 100
+}
+```
+
+Session IDs are **UUIDs** for live ingest. Legacy demo sessions use **numeric** IDs on the lecturer timeline endpoint.
+
+---
+
 ## Tech stack
 
 | Layer | Technology |
@@ -118,6 +266,7 @@ Schema is managed by **Flyway** (`V1`–`V13`). Hibernate defaults to **`ddl-aut
 | V11 | `exam_sessions`, `integrity_events` (live proctoring ingest) |
 | V12 | Enroll demo student `STU-12345` in published exams |
 | V13 | Lecturer analytics overview seed data |
+| V14 | Demo live exam sessions for lecturer dashboard / monitoring |
 
 If Flyway did not run on Neon (legacy DB), apply manually:
 
@@ -126,6 +275,7 @@ If Flyway did not run on Neon (legacy DB), apply manually:
 node scripts/run-exam-sessions-migration.mjs   # V11
 node scripts/run-student-exams-seed.mjs        # V12
 node scripts/run-lecturer-analytics-seed.mjs   # V13
+node scripts/run-lecturer-dashboard-seed.mjs   # V14
 node scripts/run-neon-seed.mjs                 # student results demo
 node scripts/run-lecturer-seed.mjs             # lecturer students demo
 node scripts/run-lecturer-exams-seed.mjs       # lecturer exams demo
@@ -231,6 +381,33 @@ Obtain tokens from `POST /api/auth/login` or `POST /api/auth/register`.
 |---|---|---|
 | `GET` | `/overview?period=7D\|30D\|3M` | Analytics dashboard (KPIs, trends, top behaviors) |
 
+### Lecturer dashboard — `/api/lecturer/dashboard` (LECTURER)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Aggregated home page: live exam banner, needs review, exam tabs, 7D trend slice, top behaviors |
+
+Always returns **200** with empty arrays / `liveExam: null` when no data (not 404).
+
+### Lecturer live monitoring — `/api/lecturer/exams` (LECTURER)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/{examId}/live-sessions` | Enrolled students + in-progress `exam_sessions`, stats for live monitoring UI |
+
+### Lecturer proctoring (metadata v1) — `/api/lecturer/proctoring` (LECTURER)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/exams` | Live exams with active session feed counts |
+| `GET` | `/exams/{examId}/feeds` | Active session metadata (`snapshotUrl` null until thumbnails exist) |
+
+### Lecturer students — extra
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/lecturer/students/needs-review?limit=10&examId=` | Optional; same rows as dashboard `needsReview` |
+
 ### Devices — `/api/devices` (authenticated)
 
 | Method | Path | Description |
@@ -315,4 +492,10 @@ scripts/                           Manual Neon seed runners (.mjs)
 
 ## Postman
 
-Import `postman/Observerr_Auth.postman_collection.json`. Set `baseUrl` to production or `http://localhost:8080`.
+| File | Purpose |
+|---|---|
+| `postman/Observerr_Auth.postman_collection.json` | Full API collection (26+ endpoints) |
+| `postman/Observerr.postman_environment.json` | `baseUrl`, token, `examId`, `sessionId` vars |
+| `postman/README.md` | Import steps and test flows |
+
+Set `baseUrl` to production or `http://localhost:8080`. Run **Login (Demo Lecturer)** or **Login (Demo Student)** first — tokens are saved automatically.
