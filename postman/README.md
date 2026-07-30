@@ -1,5 +1,7 @@
 # Postman — Observerr API
 
+> Backend runtime is **Java / Maven / Docker** only. Node is not required for Postman or the API.
+
 ## Import
 
 1. **Collection:** `Observerr_Auth.postman_collection.json`

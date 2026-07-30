@@ -18,15 +18,15 @@ import com.backend.observerr.lecturer.students.model.ProctoringSession;
 import com.backend.observerr.lecturer.students.model.RiskLevel;
 import com.backend.observerr.lecturer.students.repository.ProctoringSessionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LecturerDashboardService {
 
     private static final int REVIEW_THRESHOLD = 60;
@@ -40,6 +40,7 @@ public class LecturerDashboardService {
     private final ExamRepository examRepository;
     private final UserRepository userRepository;
     private final LecturerSessionInsights sessionInsights;
+    private final LecturerDashboardFallbacks fallbacks;
 
     @Transactional(readOnly = true)
     public LecturerDashboardResponse getDashboard(User lecturer) {
@@ -52,9 +53,12 @@ public class LecturerDashboardService {
 
         LiveExamBannerDto liveExam = liveExamDto == null
                 ? null
-                : buildLiveExamBanner(liveExamDto, lecturer.getId());
+                : fallbacks.liveExamBannerOrFallback(
+                        () -> buildLiveExamBanner(liveExamDto, lecturer.getId()),
+                        liveExamDto);
 
-        List<NeedsReviewItemDto> needsReview = buildNeedsReview(lecturer.getId());
+        List<NeedsReviewItemDto> needsReview =
+                fallbacks.needsReviewOrEmpty(() -> buildNeedsReview(lecturer.getId()));
 
         ExamTabsDto examTabs = ExamTabsDto.builder()
                 .live(capExams(allExams, "LIVE"))
@@ -63,19 +67,15 @@ public class LecturerDashboardService {
                 .build();
 
         Optional<LecturerAnalyticsOverviewResponse> analytics =
-                lecturerAnalyticsService.findOverview(lecturer, "7D");
+                fallbacks.analyticsOrEmpty(() -> lecturerAnalyticsService.findOverview(lecturer, "7D"));
 
         IntegrityTrendSummaryDto integrityTrend = analytics
                 .map(this::toIntegrityTrend)
-                .orElse(IntegrityTrendSummaryDto.builder()
-                        .changeLabel("No trend data")
-                        .changeDirection("STABLE")
-                        .points(List.of())
-                        .build());
+                .orElseGet(fallbacks::emptyIntegrityTrend);
 
         List<TopFlaggedBehaviorDto> topFlaggedBehaviors = analytics
                 .map(this::toTopBehaviors)
-                .orElse(List.of());
+                .orElseGet(fallbacks::emptyBehaviors);
 
         return LecturerDashboardResponse.builder()
                 .liveExam(liveExam)
@@ -123,7 +123,7 @@ public class LecturerDashboardService {
             avgScore = 88.0;
         }
 
-        long remainingSeconds = Math.max(0, Duration.between(Instant.now(), exam.getEndTime()).getSeconds());
+        long remainingSeconds = LecturerDashboardFallbacks.remainingSeconds(exam);
 
         return LiveExamBannerDto.builder()
                 .examId(exam.getId())
@@ -141,7 +141,8 @@ public class LecturerDashboardService {
     private List<NeedsReviewItemDto> buildNeedsReview(Long lecturerId) {
         List<NeedsReviewItemDto> items = new ArrayList<>();
 
-        for (ExamSession session : examSessionRepository.findNeedsReviewForLecturer(lecturerId, REVIEW_THRESHOLD)) {
+        for (ExamSession session : examSessionRepository.findNeedsReviewForLecturer(
+                lecturerId, REVIEW_THRESHOLD, ExamSessionStatus.IN_PROGRESS)) {
             if (items.size() >= NEEDS_REVIEW_LIMIT) {
                 break;
             }

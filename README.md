@@ -67,7 +67,7 @@ Validation errors (`400`):
 | `403` | Wrong role (e.g. student hitting `/api/lecturer/**`) |
 | `404` | Resource not found |
 | `409` | Conflict (duplicate register, session already in progress) |
-| `500` | Server error — check Railway logs; analytics may need V13 seed |
+| `500` | Server error — check Railway logs; run **V13 + V14** seeds on Neon (see below) |
 
 ### Key response shapes
 
@@ -180,8 +180,8 @@ Session IDs are **UUIDs** for live ingest. Legacy demo sessions use **numeric** 
 ### Prerequisites
 
 - Java 21+
-- Node.js 18+ (for manual Neon seed scripts only)
-- A Neon PostgreSQL database (or PostgreSQL 14+)
+- Maven (wrapper included: `./mvnw`)
+- **Optional:** Node.js 18+ only if you run manual Neon seed scripts in `scripts/` (see `scripts/README.md`). The deployed app is **Java only**.
 
 ### 1. Environment variables
 
@@ -268,10 +268,11 @@ Schema is managed by **Flyway** (`V1`–`V13`). Hibernate defaults to **`ddl-aut
 | V13 | Lecturer analytics overview seed data |
 | V14 | Demo live exam sessions for lecturer dashboard / monitoring |
 
-If Flyway did not run on Neon (legacy DB), apply manually:
+If Flyway did not run on Neon (legacy DB), apply manually (optional Node — see [`scripts/README.md`](scripts/README.md)):
 
 ```bash
 # Set DATABASE_URL or SPRING_DATASOURCE_* (see scripts/db-connection.mjs)
+# First time only: cd scripts && npm install && cd ..
 node scripts/run-exam-sessions-migration.mjs   # V11
 node scripts/run-student-exams-seed.mjs        # V12
 node scripts/run-lecturer-analytics-seed.mjs   # V13
@@ -448,8 +449,8 @@ src/main/java/com/backend/observerr/
 ├── config/            Security, CORS, cache, Firebase, Cloudinary
 └── exception/         Global error handling
 
-src/main/resources/db/migration/   Flyway SQL (V1–V13)
-scripts/                           Manual Neon seed runners (.mjs)
+src/main/resources/db/migration/   Flyway SQL (V1–V14)
+scripts/                           Optional Neon seed runners (.mjs); Node not used at runtime
 ```
 
 ---

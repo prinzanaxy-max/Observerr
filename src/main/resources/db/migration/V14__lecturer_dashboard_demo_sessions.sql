@@ -20,7 +20,7 @@ SELECT v.session_id, e.id, u.id, NOW() - INTERVAL '45 minutes', NULL,
        v.requires_review, TRUE, 'IN_PROGRESS', NOW(), NOW()
 FROM exams e
 JOIN users l ON l.id = e.lecturer_id AND l.institutional_id = 'STU-67890'
-JOIN (VALUES
+CROSS JOIN (VALUES
     ('550e8400-e29b-41d4-a716-446655440001'::uuid, 'STU-902144', 58, 4, TRUE, 42),
     ('550e8400-e29b-41d4-a716-446655440002'::uuid, 'STU-902155', 12, 2, FALSE, 88),
     ('550e8400-e29b-41d4-a716-446655440003'::uuid, 'STU-902215', 25, 3, TRUE, 75),

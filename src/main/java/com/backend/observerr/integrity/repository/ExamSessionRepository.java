@@ -1,5 +1,6 @@
 package com.backend.observerr.integrity.repository;
 
+import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.integrity.model.ExamSession;
 import com.backend.observerr.integrity.model.ExamSessionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -39,9 +40,12 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, UUID> 
             WHERE e.lecturerId = :lecturerId
               AND (es.requiresReview = true
                    OR (es.finalScore IS NOT NULL AND es.finalScore < :threshold)
-                   OR (es.status = com.backend.observerr.integrity.model.ExamSessionStatus.IN_PROGRESS
+                   OR (es.status = :inProgressStatus
                        AND es.totalDeductions > 0 AND (es.startingScore - es.totalDeductions) < :threshold))
             ORDER BY es.updatedAt DESC
             """)
-    List<ExamSession> findNeedsReviewForLecturer(@Param("lecturerId") Long lecturerId, @Param("threshold") int threshold);
+    List<ExamSession> findNeedsReviewForLecturer(
+            @Param("lecturerId") Long lecturerId,
+            @Param("threshold") int threshold,
+            @Param("inProgressStatus") ExamSessionStatus inProgressStatus);
 }

@@ -1,0 +1,13 @@
+{
+  "name": "observerr-neon-seed-scripts",
+  "private": true,
+  "description": "Optional dev-only helpers to run SQL seeds against Neon. Not used by Spring Boot, Docker, or Railway.",
+  "type": "module",
+  "scripts": {
+    "seed:analytics": "node run-lecturer-analytics-seed.mjs",
+    "seed:dashboard": "node run-lecturer-dashboard-seed.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
+  }
+}

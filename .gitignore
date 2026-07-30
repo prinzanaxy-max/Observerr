@@ -36,3 +36,9 @@ build/
 .cursor/
 env.md
 run-local.ps1
+
+# Optional Node deps for scripts/*.mjs (Neon seeds only — not Java runtime)
+node_modules/
+scripts/node_modules/
+/package.json
+/package-lock.json
