@@ -110,4 +110,30 @@ class StudentExamIntegrationTest {
                 .andExpect(jsonPath("$.title").value("Live Calculus Quiz"))
                 .andExpect(jsonPath("$.security.webcamMonitoring").value(true));
     }
+
+    @Test
+    void listsPublishedExamWithoutExplicitEnrollment() throws Exception {
+        User lecturer = userRepository.findByInstitutionalId("LEC-STU-EXAM-1").orElseThrow();
+
+        Exam other = examRepository.save(Exam.builder()
+                .title("Open Physics Quiz")
+                .lecturerId(lecturer.getId())
+                .courseCode("PHY101")
+                .courseName("Physics")
+                .status(ExamStatus.SCHEDULED)
+                .startTime(Instant.now().minusSeconds(300))
+                .durationMinutes(60)
+                .published(true)
+                .build());
+
+        mockMvc.perform(get("/api/student/exams")
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(2)));
+
+        mockMvc.perform(get("/api/student/exams/{examId}", other.getId())
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Open Physics Quiz"));
+    }
 }

@@ -13,4 +13,6 @@ public interface ExamEnrollmentRepository extends JpaRepository<ExamEnrollment, 
     List<Long> findStudentIdsByExamId(@Param("examId") Long examId);
 
     long countByExamId(Long examId);
+
+    boolean existsByExamIdAndStudentId(Long examId, Long studentId);
 }

@@ -34,6 +34,10 @@ public class IntegritySessionService {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
 
+        if (!exam.isPublished()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found");
+        }
+
         if (examSessionRepository.existsByExamIdAndStudentIdAndStatus(
                 examId, student.getId(), ExamSessionStatus.IN_PROGRESS)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An exam session is already in progress");

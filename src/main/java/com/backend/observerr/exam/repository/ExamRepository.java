@@ -31,6 +31,10 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
             """)
     List<Exam> findPublishedExamsForStudent(@Param("studentId") Long studentId);
 
+    List<Exam> findByPublishedTrueOrderByStartTimeDesc();
+
+    Optional<Exam> findByIdAndPublishedTrue(Long id);
+
     @Query("""
             SELECT e FROM Exam e
             JOIN ExamEnrollment en ON en.examId = e.id

@@ -6,6 +6,7 @@ import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamDisplayStatus;
 import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamRepository;
+import com.backend.observerr.exam.service.ExamEnrollmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class LecturerExamService {
     private static final DateTimeFormatter ISO_LOCAL = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final ExamRepository examRepository;
+    private final ExamEnrollmentService examEnrollmentService;
 
     @Transactional(readOnly = true)
     public LecturerExamListResponse listExams(User lecturer, String statusFilter, String search) {
@@ -79,6 +81,10 @@ public class LecturerExamService {
                 .build();
 
         Exam saved = examRepository.save(exam);
+        if (saved.isPublished()) {
+            examEnrollmentService.enrollAllStudents(saved);
+            saved = examRepository.findById(saved.getId()).orElse(saved);
+        }
         return toDto(saved);
     }
 

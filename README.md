@@ -266,7 +266,7 @@ Schema is managed by **Flyway** (`V1`–`V13`). Hibernate defaults to **`ddl-aut
 | V11 | `exam_sessions`, `integrity_events` (live proctoring ingest) |
 | V12 | Enroll demo student `STU-12345` in published exams |
 | V13 | Lecturer analytics overview seed data |
-| V14 | Demo live exam sessions for lecturer dashboard / monitoring |
+| V15 | Enroll all students in all published exams (backfill) |
 
 If Flyway did not run on Neon (legacy DB), apply manually (optional Node — see [`scripts/README.md`](scripts/README.md)):
 
@@ -349,8 +349,10 @@ Obtain tokens from `POST /api/auth/login` or `POST /api/auth/register`.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/` | Enrolled published exams |
-| `GET` | `/{examId}` | Single exam detail (`canTake`, `security`, schedule) |
+| `GET` | `/` | All **published** exams (any student; not limited to prior enrollments) |
+| `GET` | `/{examId}` | Single published exam detail (`canTake`, `security`, schedule) |
+
+New published exams auto-enroll all student accounts when created with `publish: true`.
 
 ### Integrity ingest — (STUDENT)
 

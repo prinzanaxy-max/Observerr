@@ -96,6 +96,8 @@ class IntegritySessionIntegrationTest {
                 .courseName("Software Integrity")
                 .status(ExamStatus.LIVE)
                 .startTime(Instant.now())
+                .durationMinutes(120)
+                .published(true)
                 .build());
 
         studentToken = jwtService.generateAccessToken(student);
