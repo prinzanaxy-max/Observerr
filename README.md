@@ -67,7 +67,7 @@ Validation errors (`400`):
 | `403` | Wrong role (e.g. student hitting `/api/lecturer/**`) |
 | `404` | Resource not found |
 | `409` | Conflict (duplicate register, session already in progress) |
-| `500` | Server error — check Railway logs; run **V13 + V14** seeds on Neon (see below) |
+| `500` | Server error — check Railway logs; run **V13 / V14** manual seeds on Neon if analytics/dashboard tables are empty (see below) |
 
 ### Key response shapes
 
@@ -84,7 +84,7 @@ Validation errors (`400`):
 }
 ```
 
-**Student exams list** (`GET /api/student/exams` → `200`):
+**Student exams list** (`GET /api/student/exams` → `200`) — every **published** exam (not limited to prior enrollments; **V15** backfills enrollments on deploy):
 
 ```json
 {
@@ -99,6 +99,8 @@ Validation errors (`400`):
   "totalElements": 3
 }
 ```
+
+`canTake` is `true` only while the exam window is **LIVE** (schedule + lecturer start). Unpublished exams are omitted from this list.
 
 **Analytics overview** (`GET /api/lecturer/analytics/overview?period=7D` → `200`):
 
@@ -155,6 +157,8 @@ Validation errors (`400`):
 ```
 
 Session IDs are **UUIDs** for live ingest. Legacy demo sessions use **numeric** IDs on the lecturer timeline endpoint.
+
+**Start session rules:** exam must exist and be **published** (otherwise `404`); only one **IN_PROGRESS** session per student per exam (`409` if duplicate).
 
 ---
 
@@ -254,7 +258,7 @@ See gitignored `env.md` for a full Railway Raw Editor template.
 
 ## Database & migrations
 
-Schema is managed by **Flyway** (`V1`–`V13`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
+Schema is managed by **Flyway** (`V1`–`V15`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
 
 | Migration | Purpose |
 |---|---|
@@ -266,7 +270,8 @@ Schema is managed by **Flyway** (`V1`–`V13`). Hibernate defaults to **`ddl-aut
 | V11 | `exam_sessions`, `integrity_events` (live proctoring ingest) |
 | V12 | Enroll demo student `STU-12345` in published exams |
 | V13 | Lecturer analytics overview seed data |
-| V15 | Enroll all students in all published exams (backfill) |
+| V14 | Dashboard demo `exam_sessions` for lecturer home / live monitoring |
+| V15 | Enroll all students in all published exams (backfill + ongoing Flyway on deploy) |
 
 If Flyway did not run on Neon (legacy DB), apply manually (optional Node — see [`scripts/README.md`](scripts/README.md)):
 
@@ -277,6 +282,7 @@ node scripts/run-exam-sessions-migration.mjs   # V11
 node scripts/run-student-exams-seed.mjs        # V12
 node scripts/run-lecturer-analytics-seed.mjs   # V13
 node scripts/run-lecturer-dashboard-seed.mjs   # V14
+# Optional: node scripts/verify-analytics-coverage.mjs — sanity-check V13 analytics rows
 node scripts/run-neon-seed.mjs                 # student results demo
 node scripts/run-lecturer-seed.mjs             # lecturer students demo
 node scripts/run-lecturer-exams-seed.mjs       # lecturer exams demo
@@ -300,7 +306,8 @@ Obtain tokens from `POST /api/auth/login` or `POST /api/auth/register`.
 |---|---|
 | Student | `/api/student/**` |
 | Lecturer | `/api/lecturer/**` |
-| Admin | `/api/admin/**` |
+
+`/api/admin/**` is reserved in security config; there are no admin REST controllers in this repo yet.
 
 ---
 
@@ -375,8 +382,8 @@ New published exams auto-enroll all student accounts when created with `publish:
 |---|---|---|
 | `GET` | `/` | List exams (`status`, `search`) |
 | `GET` | `/{examId}` | Exam detail |
-| `POST` | `/` | Create exam |
-| `POST` | `/{examId}/start` | Transition exam to LIVE + notifications |
+| `POST` | `/` | Create exam (`publish: true` enrolls all student users) |
+| `POST` | `/{examId}/start` | Transition exam to LIVE + FCM notifications |
 
 ### Lecturer analytics — `/api/lecturer/analytics` (LECTURER)
 
@@ -445,13 +452,14 @@ src/main/java/com/backend/observerr/
 ├── integrity/         Exam sessions + integrity event ingest
 ├── exam/              Lecturer exam CRUD + lifecycle
 ├── lecturer/
-│   ├── students/      Roster + session timeline
-│   └── analytics/     Analytics overview API
+│   ├── students/      Roster + session timeline + needs-review
+│   ├── analytics/     Analytics overview API
+│   └── dashboard/     Home dashboard, live sessions, proctoring metadata
 ├── notification/      FCM + device tokens
 ├── config/            Security, CORS, cache, Firebase, Cloudinary
 └── exception/         Global error handling
 
-src/main/resources/db/migration/   Flyway SQL (V1–V14)
+src/main/resources/db/migration/   Flyway SQL (V1–V15)
 scripts/                           Optional Neon seed runners (.mjs); Node not used at runtime
 ```
 
@@ -497,7 +505,7 @@ scripts/                           Optional Neon seed runners (.mjs); Node not u
 
 | File | Purpose |
 |---|---|
-| `postman/Observerr_Auth.postman_collection.json` | Full API collection (26+ endpoints) |
+| `postman/Observerr_Auth.postman_collection.json` | Full API collection (~40 requests) |
 | `postman/Observerr.postman_environment.json` | `baseUrl`, token, `examId`, `sessionId` vars |
 | `postman/README.md` | Import steps and test flows |
 

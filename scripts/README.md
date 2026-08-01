@@ -23,9 +23,10 @@ Set `DATABASE_URL` or `SPRING_DATASOURCE_*` (see `db-connection.mjs`), then from
 ```bash
 node scripts/run-lecturer-analytics-seed.mjs   # V13
 node scripts/run-lecturer-dashboard-seed.mjs   # V14
+node scripts/verify-analytics-coverage.mjs     # optional check after V13
 ```
 
-See root `README.md` for the full list.
+See root `README.md` for the full seed list.
 
 ## Without Node
 

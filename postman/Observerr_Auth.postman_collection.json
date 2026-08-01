@@ -2,7 +2,7 @@
   "info": {
     "name": "Observerr API",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "description": "Complete Observerr backend API — auth, student, lecturer, integrity ingest, analytics.\n\n**Setup:** Import `Observerr.postman_environment.json`, select the Observerr environment, then run **Login (Demo Lecturer)** or **Login (Demo Student)**.\n\nProduction: `https://observerr-production.up.railway.app`\nFrontend: `https://observerr-ui.pages.dev`",
+    "description": "Complete Observerr backend API (~40 requests) — auth, account, student results/stats/exams, integrity ingest, lecturer exams, dashboard, students, proctoring, analytics, devices.\n\n**Setup:** Import `Observerr.postman_environment.json`, select the Observerr environment, then run **Login (Demo Lecturer)** or **Login (Demo Student)**.\n\n**Student exams:** `GET /api/student/exams` returns all **published** exams. **Start Session** requires a published exam (`404` otherwise).\n\n**Create exam:** `POST /api/lecturer/exams` with `\"publish\": true` enrolls all student users.\n\nProduction: `https://observerr-production.up.railway.app`\nFrontend: `https://observerr-ui.pages.dev`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -260,7 +260,27 @@
         },
         {
           "name": "List Exams",
-          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams" }
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/exams",
+            "description": "All published exams for any student (not enrollment-only). Response: `{ exams[], totalElements }`."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  if (j.exams && j.exams.length) {",
+                "    const pick = j.exams.find(e => e.status === 'LIVE') || j.exams[0];",
+                "    pm.collectionVariables.set('examId', String(pick.id));",
+                "    pm.environment.set('examId', String(pick.id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
         },
         {
           "name": "Get Exam Detail",
@@ -277,7 +297,8 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"startingScore\": 100\n}" },
-            "url": "{{baseUrl}}/api/student/exams/{{examId}}/sessions"
+            "url": "{{baseUrl}}/api/student/exams/{{examId}}/sessions",
+            "description": "Exam must be **published**. Returns 201 with UUID sessionId; 404 if exam missing/unpublished; 409 if session already IN_PROGRESS."
           },
           "event": [{
             "listen": "test",
@@ -349,14 +370,17 @@
               "mode": "raw",
               "raw": "{\n  \"title\": \"Midterm Exam\",\n  \"course\": \"CS201: Data Structures\",\n  \"startAt\": \"2026-08-01T14:00:00\",\n  \"durationMinutes\": 120,\n  \"security\": {\n    \"webcamMonitoring\": true,\n    \"tabSwitchTracking\": true,\n    \"blockCopyPaste\": false\n  },\n  \"publish\": true\n}"
             },
-            "url": "{{baseUrl}}/api/lecturer/exams"
+            "url": "{{baseUrl}}/api/lecturer/exams",
+            "description": "When `publish` is true, all STUDENT users are enrolled automatically."
           },
           "event": [{
             "listen": "test",
             "script": {
               "exec": [
                 "if (pm.response.code === 201) {",
-                "  pm.collectionVariables.set('examId', pm.response.json().id);",
+                "  const id = pm.response.json().id;",
+                "  pm.collectionVariables.set('examId', String(id));",
+                "  pm.environment.set('examId', String(id));",
                 "}"
               ],
               "type": "text/javascript"
