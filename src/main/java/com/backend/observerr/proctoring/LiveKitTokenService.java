@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +31,11 @@ public class LiveKitTokenService {
     }
 
     public LiveKitTokenResponse createSubscriberToken(Long examId, Long lecturerId) {
-        return createToken(examId, "lecturer-" + lecturerId, false, true);
+        return createToken(
+                examId,
+                "lecturer-" + lecturerId + "-" + UUID.randomUUID(),
+                false,
+                true);
     }
 
     public String roomName(Long examId) {

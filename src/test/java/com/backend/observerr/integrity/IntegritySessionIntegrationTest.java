@@ -269,10 +269,14 @@ class IntegritySessionIntegrationTest {
                         "/api/lecturer/proctoring/exams/{examId}/media-token", exam.getId())
                         .header("Authorization", "Bearer " + lecturerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.participantIdentity").value("lecturer-" + lecturer.getId()))
+                .andExpect(jsonPath("$.participantIdentity",
+                        startsWith("lecturer-" + lecturer.getId() + "-")))
                 .andReturn().getResponse().getContentAsString();
 
-        JsonNode lecturerClaims = decodeClaims(objectMapper.readTree(lecturerResponse).get("token").asText());
+        JsonNode lecturerTokenBody = objectMapper.readTree(lecturerResponse);
+        JsonNode lecturerClaims = decodeClaims(lecturerTokenBody.get("token").asText());
+        assertEquals(lecturerTokenBody.get("participantIdentity").asText(),
+                lecturerClaims.get("sub").asText());
         assertFalse(lecturerClaims.at("/video/canPublish").asBoolean());
         assertTrue(lecturerClaims.at("/video/canSubscribe").asBoolean());
 
