@@ -5,6 +5,8 @@ import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamEnrollmentRepository;
 import com.backend.observerr.exam.repository.ExamRepository;
+import com.backend.observerr.exam.service.ExamStudentBlockService;
+import com.backend.observerr.notification.NotificationService;
 import com.backend.observerr.integrity.dto.*;
 import com.backend.observerr.integrity.model.ExamSession;
 import com.backend.observerr.integrity.model.ExamSessionStatus;
@@ -16,11 +18,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.cache.annotation.CacheEvict;
+import com.backend.observerr.config.CacheConfig;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -32,6 +39,8 @@ public class IntegritySessionService {
     private final ExamSessionRepository examSessionRepository;
     private final IntegrityEventRepository integrityEventRepository;
     private final IntegrityScoringPolicy scoringPolicy;
+    private final ExamStudentBlockService blockService;
+    private final NotificationService notificationService;
 
     @Transactional
     public ExamSessionResponse startSession(User student, Long examId, StartExamSessionRequest request) {
@@ -75,6 +84,7 @@ public class IntegritySessionService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheConfig.LECTURER_ANALYTICS_OVERVIEW_CACHE, allEntries = true)
     public IntegrityEventsBatchResponse appendEvents(User student, UUID sessionId, IntegrityEventsBatchRequest request) {
         ExamSession session = loadStudentSessionForUpdate(student, sessionId);
         ensureInProgress(session);
@@ -82,9 +92,14 @@ public class IntegritySessionService {
         int accepted = 0;
         int skipped = 0;
         int deductions = session.getTotalDeductions();
+        List<UUID> requestedIds = request.getEvents().stream()
+                .map(IntegrityEventIngestDto::getClientEventId)
+                .toList();
+        Set<UUID> seenIds = new HashSet<>(integrityEventRepository.findExistingClientEventIds(requestedIds));
+        List<IntegrityEvent> pendingEvents = new ArrayList<>();
 
         for (IntegrityEventIngestDto eventDto : request.getEvents()) {
-            if (integrityEventRepository.existsByClientEventId(eventDto.getClientEventId())) {
+            if (!seenIds.add(eventDto.getClientEventId())) {
                 skipped++;
                 continue;
             }
@@ -95,7 +110,8 @@ public class IntegritySessionService {
                     session,
                     deductions,
                     session.isProctoringAvailable() && eventKeepsProctoring);
-            integrityEventRepository.save(toEntity(sessionId, eventDto, rule, currentScore));
+            pendingEvents.add(toEntity(sessionId, eventDto, rule, currentScore));
+            notifyHighRisk(session, rule);
             if (!eventKeepsProctoring) {
                 session.setProctoringAvailable(false);
             }
@@ -104,6 +120,7 @@ public class IntegritySessionService {
         }
 
         if (accepted > 0) {
+            integrityEventRepository.saveAll(pendingEvents);
             session.setTotalEvents(session.getTotalEvents() + accepted);
             session.setTotalDeductions(deductions);
             session.setFinalScore((short) scoreFor(session, deductions, session.isProctoringAvailable()));
@@ -122,6 +139,7 @@ public class IntegritySessionService {
     }
 
     @Transactional
+    @CacheEvict(value = CacheConfig.LECTURER_ANALYTICS_OVERVIEW_CACHE, allEntries = true)
     public CompleteExamSessionResponse completeSession(
             User student,
             UUID sessionId,
@@ -187,8 +205,10 @@ public class IntegritySessionService {
     }
 
     private ExamSession loadStudentSessionForUpdate(User student, UUID sessionId) {
-        return examSessionRepository.findByIdAndStudentIdForUpdate(sessionId, student.getId())
+        ExamSession session = examSessionRepository.findByIdAndStudentIdForUpdate(sessionId, student.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
+        blockService.requireNotBlocked(session.getExamId(), student.getId());
+        return session;
     }
 
     private void ensureInProgress(ExamSession session) {
@@ -200,18 +220,22 @@ public class IntegritySessionService {
     private void ingestEvents(ExamSession session, List<IntegrityEventIngestDto> events) {
         int accepted = 0;
         int deductions = session.getTotalDeductions();
+        List<UUID> requestedIds = events.stream().map(IntegrityEventIngestDto::getClientEventId).toList();
+        Set<UUID> seenIds = new HashSet<>(integrityEventRepository.findExistingClientEventIds(requestedIds));
+        List<IntegrityEvent> pendingEvents = new ArrayList<>();
         for (IntegrityEventIngestDto eventDto : events) {
-            if (integrityEventRepository.existsByClientEventId(eventDto.getClientEventId())) {
+            if (!seenIds.add(eventDto.getClientEventId())) {
                 continue;
             }
             IntegrityScoringPolicy.Rule rule = resolveRule(session, eventDto, deductions);
             deductions += rule.points();
             boolean eventKeepsProctoring = eventKeepsProctoring(eventDto.getEventCode());
-            integrityEventRepository.save(toEntity(
+            pendingEvents.add(toEntity(
                     session.getId(),
                     eventDto,
                     rule,
                     scoreFor(session, deductions, session.isProctoringAvailable() && eventKeepsProctoring)));
+            notifyHighRisk(session, rule);
             if (!eventKeepsProctoring) {
                 session.setProctoringAvailable(false);
             }
@@ -219,6 +243,7 @@ public class IntegritySessionService {
             accepted++;
         }
         if (accepted > 0) {
+            integrityEventRepository.saveAll(pendingEvents);
             session.setTotalEvents(session.getTotalEvents() + accepted);
             session.setTotalDeductions(deductions);
             session.setFinalScore((short) scoreFor(session, deductions, session.isProctoringAvailable()));
@@ -285,7 +310,18 @@ public class IntegritySessionService {
                 && !"PROCTORING_UNAVAILABLE".equals(eventCode);
     }
 
+    private void notifyHighRisk(ExamSession session, IntegrityScoringPolicy.Rule rule) {
+        if (!rule.requiresReview() && !"HIGH".equalsIgnoreCase(rule.severity())
+                && !"CRITICAL".equalsIgnoreCase(rule.severity())) {
+            return;
+        }
+        examRepository.findById(session.getExamId()).ifPresent(exam ->
+                notificationService.sendHighRiskAlert(
+                        exam.getLecturerId(), exam.getId(), rule.title()));
+    }
+
     private void requireStudentCanStart(User student, Exam exam) {
+        blockService.requireNotBlocked(exam.getId(), student.getId());
         if (!examEnrollmentRepository.existsByExamIdAndStudentId(exam.getId(), student.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Student is not enrolled in this exam");
         }

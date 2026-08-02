@@ -5,6 +5,7 @@ import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamEnrollmentRepository;
 import com.backend.observerr.exam.repository.ExamRepository;
+import com.backend.observerr.exam.service.ExamStudentBlockService;
 import com.backend.observerr.integrity.model.ExamSession;
 import com.backend.observerr.integrity.model.ExamSessionStatus;
 import com.backend.observerr.integrity.repository.ExamSessionRepository;
@@ -26,6 +27,7 @@ public class ProctoringMediaService {
     private final ExamEnrollmentRepository examEnrollmentRepository;
     private final ExamSessionRepository examSessionRepository;
     private final LiveKitTokenService liveKitTokenService;
+    private final ExamStudentBlockService blockService;
 
     @Transactional(readOnly = true)
     public LiveKitTokenResponse issueStudentToken(User student, UUID sessionId) {
@@ -37,6 +39,7 @@ public class ProctoringMediaService {
 
         Exam exam = examRepository.findById(session.getExamId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
+        blockService.requireNotBlocked(exam.getId(), student.getId());
         requireLiveProctoredExam(exam);
         if (!examEnrollmentRepository.existsByExamIdAndStudentId(exam.getId(), student.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Student is not enrolled in this exam");

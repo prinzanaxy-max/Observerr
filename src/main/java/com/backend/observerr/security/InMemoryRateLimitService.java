@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
@@ -24,9 +25,9 @@ public class InMemoryRateLimitService implements RateLimitService {
             window = new Window(now + (windowSeconds * 1000L));
             windows.put(key, window);
         }
-        window.count++;
+        int count = window.count.incrementAndGet();
         log.warn("Using in-memory rate limiter (set REDIS_URL for production)");
-        return window.count <= maxAttempts;
+        return count <= maxAttempts;
     }
 
     private void purgeExpired(long now) {
@@ -40,7 +41,7 @@ public class InMemoryRateLimitService implements RateLimitService {
     }
 
     private static final class Window {
-        private int count;
+        private final AtomicInteger count = new AtomicInteger();
         private final long expiresAtMs;
 
         private Window(long expiresAtMs) {

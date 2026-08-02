@@ -35,4 +35,11 @@ public class DeviceTokenService {
                         }
                 );
     }
+
+    @Transactional
+    public void unregisterToken(User user, RegisterDeviceTokenRequest request) {
+        deviceTokenRepository.findByToken(request.getToken())
+                .filter(existing -> existing.getUserId().equals(user.getId()))
+                .ifPresent(deviceTokenRepository::delete);
+    }
 }

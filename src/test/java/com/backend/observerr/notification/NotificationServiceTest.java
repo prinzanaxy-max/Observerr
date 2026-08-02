@@ -28,6 +28,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
+import com.backend.observerr.notification.model.UserNotification;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -45,6 +47,9 @@ class NotificationServiceTest {
     private DeviceTokenRepository deviceTokenRepository;
 
     @Mock
+    private NotificationInboxService inboxService;
+
+    @Mock
     private BatchResponse batchResponse;
 
     @InjectMocks
@@ -55,6 +60,8 @@ class NotificationServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(notificationService, "frontendBaseUrl", "https://app.example.com");
+        lenient().when(inboxService.create(any(), any(), any(), any(), any(), any()))
+                .thenReturn(UserNotification.builder().id(1L).build());
 
         exam = Exam.builder()
                 .id(42L)

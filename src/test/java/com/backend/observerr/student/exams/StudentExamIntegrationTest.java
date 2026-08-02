@@ -112,7 +112,7 @@ class StudentExamIntegrationTest {
     }
 
     @Test
-    void listsPublishedExamWithoutExplicitEnrollment() throws Exception {
+    void hidesPublishedExamWithoutExplicitEnrollment() throws Exception {
         User lecturer = userRepository.findByInstitutionalId("LEC-STU-EXAM-1").orElseThrow();
 
         Exam other = examRepository.save(Exam.builder()
@@ -129,11 +129,10 @@ class StudentExamIntegrationTest {
         mockMvc.perform(get("/api/student/exams")
                         .header("Authorization", "Bearer " + studentToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(2)));
+                .andExpect(jsonPath("$.totalElements", is(1)));
 
         mockMvc.perform(get("/api/student/exams/{examId}", other.getId())
                         .header("Authorization", "Bearer " + studentToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Open Physics Quiz"));
+                .andExpect(status().isNotFound());
     }
 }

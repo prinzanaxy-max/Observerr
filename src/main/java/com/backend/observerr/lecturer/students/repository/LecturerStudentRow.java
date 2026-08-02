@@ -22,5 +22,5 @@ public interface LecturerStudentRow {
 
     LocalDate getLastActiveDate();
 
-    Long getLatestSessionId();
+    String getLatestSessionId();
 }

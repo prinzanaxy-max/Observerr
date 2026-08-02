@@ -6,6 +6,7 @@ import com.backend.observerr.auth.dto.LogoutResponse;
 import com.backend.observerr.auth.dto.RegisterRequest;
 import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.model.UserRepository;
+import com.backend.observerr.auth.model.Role;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,11 @@ public class AuthService {
     private final AuthCookieService authCookieService;
 
     public AuthResponse register(RegisterRequest request) {
+        if (request.getRole() != Role.STUDENT) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Public registration is available for students only");
+        }
         if (userRepository.existsByInstitutionalId(request.getInstitutionalId())) {
             throw new RuntimeException("Institutional ID already registered");
         }

@@ -49,6 +49,8 @@ public class LecturerLiveMonitoringService {
         List<Long> studentIds = enrolledStudentIds.isEmpty()
                 ? sessions.stream().map(ExamSession::getStudentId).distinct().toList()
                 : enrolledStudentIds;
+        Map<Long, User> usersById = userRepository.findAllById(studentIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
 
         List<MonitoredStudentDto> students = new ArrayList<>();
         int highRisk = 0;
@@ -57,7 +59,7 @@ public class LecturerLiveMonitoringService {
         int scoreSum = 0;
 
         for (Long studentId : studentIds) {
-            User student = userRepository.findById(studentId).orElse(null);
+            User student = usersById.get(studentId);
             if (student == null) {
                 continue;
             }

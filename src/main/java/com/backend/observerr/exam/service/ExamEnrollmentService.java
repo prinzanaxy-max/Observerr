@@ -10,6 +10,12 @@ import com.backend.observerr.exam.repository.ExamRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,21 +26,34 @@ public class ExamEnrollmentService {
     private final ExamRepository examRepository;
 
     @Transactional
-    public void enrollAllStudents(Exam exam) {
-        if (exam == null || !exam.isPublished()) {
-            return;
+    public List<String> replaceEnrollments(Long examId, Long lecturerId, List<String> institutionalIds) {
+        Exam exam = examRepository.findByIdAndLecturerId(examId, lecturerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
+        Set<String> requestedIds = new LinkedHashSet<>();
+        institutionalIds.stream()
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .forEach(requestedIds::add);
+
+        List<User> students = requestedIds.isEmpty()
+                ? List.of()
+                : userRepository.findByInstitutionalIdIn(List.copyOf(requestedIds));
+        if (students.size() != requestedIds.size()
+                || students.stream().anyMatch(user -> user.getRole() != Role.STUDENT)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Every enrollment must identify an existing student");
         }
 
-        for (User student : userRepository.findByRole(Role.STUDENT)) {
-            if (!examEnrollmentRepository.existsByExamIdAndStudentId(exam.getId(), student.getId())) {
-                examEnrollmentRepository.save(ExamEnrollment.builder()
+        examEnrollmentRepository.deleteByExamId(exam.getId());
+        examEnrollmentRepository.saveAll(students.stream()
+                .map(student -> ExamEnrollment.builder()
                         .examId(exam.getId())
                         .studentId(student.getId())
-                        .build());
-            }
-        }
-
-        syncEnrolledCount(exam.getId());
+                        .build())
+                .toList());
+        exam.setEnrolledCount(students.size());
+        examRepository.save(exam);
+        return students.stream().map(User::getInstitutionalId).sorted().toList();
     }
 
     @Transactional

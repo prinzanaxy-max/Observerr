@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 @Slf4j
 @Service
@@ -34,6 +35,7 @@ public class NotificationService {
     private final ExamRepository examRepository;
     private final ExamEnrollmentRepository enrollmentRepository;
     private final DeviceTokenRepository deviceTokenRepository;
+    private final NotificationInboxService inboxService;
 
     @Value("${app.frontend-base-url:http://localhost:5173}")
     private String frontendBaseUrl;
@@ -42,47 +44,28 @@ public class NotificationService {
         Exam exam = loadExam(examId);
         List<Long> studentIds = enrollmentRepository.findStudentIdsByExamId(examId);
 
-        if (studentIds.isEmpty()) {
-            log.info("No enrolled students for examId={} — skipping student notifications", examId);
-            return;
-        }
-
-        List<DeviceToken> tokens = deviceTokenRepository.findByUserIdIn(studentIds);
-        if (tokens.isEmpty()) {
-            log.info("No device tokens for enrolled students on examId={}", examId);
-            return;
-        }
-
         NotificationPayload payload = buildStudentExamStartMessage(exam);
-        sendMulticastInBatches(tokens, payload, "EXAM_STARTED");
-        log.info("Dispatched student exam-start notifications examId={} tokenCount={}", examId, tokens.size());
+        List<Long> permittedStudentIds = new ArrayList<>();
+        for (Long studentId : studentIds) {
+            if (inboxService.create(studentId, "EXAM", payload.getTitle(), payload.getBody(),
+                    payload.getWebPushLink(), "exam-start:" + examId + ":" + studentId) != null) {
+                permittedStudentIds.add(studentId);
+            }
+        }
+        if (!permittedStudentIds.isEmpty()) {
+            sendMulticastInBatches(
+                    deviceTokenRepository.findByUserIdIn(permittedStudentIds), payload, "EXAM_STARTED");
+        }
     }
 
     public void notifyLecturerExamStarted(Long examId) {
         Exam exam = loadExam(examId);
         long studentCount = enrollmentRepository.countByExamId(examId);
-        List<DeviceToken> tokens = deviceTokenRepository.findByUserId(exam.getLecturerId());
-
-        if (tokens.isEmpty()) {
-            log.info("No device tokens for lecturerId={} examId={}", exam.getLecturerId(), examId);
-            return;
-        }
-
         NotificationPayload payload = buildLecturerExamStartMessage(exam, studentCount);
-        for (DeviceToken deviceToken : tokens) {
-            sendMessage(deviceToken, payload);
-        }
-        log.info("Dispatched lecturer exam-start notifications examId={} lecturerId={} tokenCount={}",
-                examId, exam.getLecturerId(), tokens.size());
+        emit(exam.getLecturerId(), "EXAM", payload, "exam-live:" + examId);
     }
 
     public void sendHighRiskAlert(Long userId, Long examId, String alertMessage) {
-        List<DeviceToken> tokens = deviceTokenRepository.findByUserId(userId);
-        if (tokens.isEmpty()) {
-            log.info("No device tokens for high-risk alert userId={} examId={}", userId, examId);
-            return;
-        }
-
         NotificationPayload payload = NotificationPayload.builder()
                 .title("High Risk Alert")
                 .body(alertMessage)
@@ -92,11 +75,48 @@ public class NotificationService {
                 ))
                 .webPushLink(frontendBaseUrl + "/lecturer/exams/" + examId + "/live")
                 .build();
+        emit(userId, "INTEGRITY", payload, null);
+    }
 
-        for (DeviceToken deviceToken : tokens) {
-            sendMessage(deviceToken, payload);
+    public void notifyExamEnded(Long examId) {
+        Exam exam = loadExam(examId);
+        NotificationPayload payload = NotificationPayload.builder()
+                .title("Exam Ended").body(exam.getTitle() + " has ended.")
+                .data(Map.of("type", "EXAM_ENDED", "examId", examId.toString()))
+                .webPushLink(frontendBaseUrl + "/student/exams").build();
+        for (Long studentId : enrollmentRepository.findStudentIdsByExamId(examId)) {
+            emit(studentId, "EXAM", payload, "exam-end:" + examId + ":" + studentId);
         }
-        log.warn("High-risk alert sent userId={} examId={} tokenCount={}", userId, examId, tokens.size());
+        emit(exam.getLecturerId(), "EXAM", payload, "exam-end:" + examId + ":lecturer");
+    }
+
+    public void notifyStudentCompleted(Long lecturerId, Long studentId, Long examId) {
+        NotificationPayload payload = NotificationPayload.builder()
+                .title("Student Completed Exam")
+                .body("A student submitted exam #" + examId + ".")
+                .data(Map.of("type", "STUDENT_COMPLETED", "examId", examId.toString(),
+                        "studentId", studentId.toString()))
+                .webPushLink(frontendBaseUrl + "/lecturer/exams/" + examId + "/results").build();
+        emit(lecturerId, "EXAM", payload, "completion:" + examId + ":" + studentId);
+    }
+
+    public void notifyResultReleased(Long studentId, Long examId, Long resultId) {
+        NotificationPayload payload = NotificationPayload.builder()
+                .title("Result Released").body("Your exam result is now available.")
+                .data(Map.of("type", "RESULT_RELEASED", "examId", examId.toString(),
+                        "resultId", resultId.toString()))
+                .webPushLink(frontendBaseUrl + "/student/results/" + resultId).build();
+        emit(studentId, "RESULT", payload, "result-release:" + resultId);
+    }
+
+    private void emit(Long userId, String category, NotificationPayload payload, String dedupeKey) {
+        if (inboxService.create(userId, category, payload.getTitle(), payload.getBody(),
+                payload.getWebPushLink(), dedupeKey) == null) {
+            return;
+        }
+        for (DeviceToken token : deviceTokenRepository.findByUserId(userId)) {
+            sendMessage(token, payload);
+        }
     }
 
     private Exam loadExam(Long examId) {

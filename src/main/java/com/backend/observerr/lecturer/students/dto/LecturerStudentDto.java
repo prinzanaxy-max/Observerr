@@ -22,5 +22,5 @@ public class LecturerStudentDto {
     private final int avgIntegrityScore;
     private final String riskLevel;
     private final String lastActive;
-    private final Long latestSessionId;
+    private final String latestSessionId;
 }

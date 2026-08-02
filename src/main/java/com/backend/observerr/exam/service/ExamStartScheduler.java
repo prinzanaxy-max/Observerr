@@ -25,6 +25,7 @@ public class ExamStartScheduler {
         );
 
         if (dueExams.isEmpty()) {
+            endDueExams();
             return;
         }
 
@@ -34,6 +35,18 @@ public class ExamStartScheduler {
                 examLifecycleService.transitionExamToLive(exam.getId());
             } catch (Exception ex) {
                 log.error("Failed LIVE transition for examId={}: {}", exam.getId(), ex.getMessage(), ex);
+            }
+        }
+        endDueExams();
+    }
+
+    private void endDueExams() {
+        var due = examRepository.findByStatusAndEndTimeLessThanEqual(ExamStatus.LIVE, Instant.now());
+        for (var exam : due) {
+            try {
+                examLifecycleService.endExam(exam.getId());
+            } catch (Exception ex) {
+                log.error("Failed END transition for examId={}: {}", exam.getId(), ex.getMessage(), ex);
             }
         }
     }

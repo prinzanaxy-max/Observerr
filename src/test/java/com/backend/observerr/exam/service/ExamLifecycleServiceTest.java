@@ -47,7 +47,7 @@ class ExamLifecycleServiceTest {
 
     @Test
     void transitionExamToLive_sendsBothNotificationsOnce() {
-        when(examRepository.findById(10L)).thenReturn(Optional.of(exam));
+        when(examRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(exam));
         when(examRepository.save(any(Exam.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         examLifecycleService.transitionExamToLive(10L);
@@ -60,7 +60,7 @@ class ExamLifecycleServiceTest {
     @Test
     void transitionExamToLive_skipsWhenAlreadySent() {
         exam.setStartNotificationsSent(true);
-        when(examRepository.findById(10L)).thenReturn(Optional.of(exam));
+        when(examRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(exam));
 
         examLifecycleService.transitionExamToLive(10L);
 
@@ -72,7 +72,7 @@ class ExamLifecycleServiceTest {
     @Test
     void transitionExamToLive_skipsWhenNotScheduled() {
         exam.setStatus(ExamStatus.LIVE);
-        when(examRepository.findById(10L)).thenReturn(Optional.of(exam));
+        when(examRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(exam));
 
         examLifecycleService.transitionExamToLive(10L);
 

@@ -29,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -49,27 +50,24 @@ public class LecturerStudentsService {
         String courseFilter = normalizeCourseFilter(course);
         String searchFilter = normalizeSearch(search);
 
-        List<LecturerStudentDto> allStudents = lecturerCourseRepository
-                .findRoster(lecturer.getId(), courseFilter, searchFilter)
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 50);
+        var roster = lecturerCourseRepository
+                .findRealRoster(lecturer.getId(), courseFilter, searchFilter,
+                        PageRequest.of(safePage, safeSize));
+        List<LecturerStudentDto> pageContent = roster.getContent()
                 .stream()
                 .map(this::toStudentDto)
                 .toList();
 
-        int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), 50);
-        int totalElements = allStudents.size();
-        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / safeSize);
-        int fromIndex = Math.min(safePage * safeSize, totalElements);
-        int toIndex = Math.min(fromIndex + safeSize, totalElements);
-
-        List<LecturerStudentDto> pageContent = allStudents.subList(fromIndex, toIndex);
+        long totalElements = roster.getTotalElements();
+        int totalPages = roster.getTotalPages();
+        int fromIndex = safePage * safeSize;
+        int toIndex = fromIndex + pageContent.size();
         int from = pageContent.isEmpty() ? 0 : fromIndex + 1;
         int to = pageContent.isEmpty() ? 0 : toIndex;
 
-        List<String> availableCourses = lecturerCourseRepository.findByLecturerIdOrderByCourseCodeAsc(lecturer.getId())
-                .stream()
-                .map(courseEntry -> courseEntry.getCourseCode() + ":" + courseEntry.getCourseName())
-                .toList();
+        List<String> availableCourses = examRepository.findCourseLabelsByLecturerId(lecturer.getId());
 
         return LecturerStudentsPageDto.builder()
                 .content(pageContent)

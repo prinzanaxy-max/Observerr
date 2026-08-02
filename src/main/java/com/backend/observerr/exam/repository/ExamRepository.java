@@ -23,6 +23,8 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
             Instant startTime
     );
 
+    List<Exam> findByStatusAndEndTimeLessThanEqual(ExamStatus status, Instant endTime);
+
     List<Exam> findByLecturerIdAndPublishedTrueOrderByStartTimeDesc(Long lecturerId);
 
     List<Exam> findByLecturerIdOrderByStartTimeDesc(Long lecturerId);
@@ -49,4 +51,11 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
     Optional<Exam> findPublishedExamForStudent(
             @Param("examId") Long examId,
             @Param("studentId") Long studentId);
+
+    @Query("""
+            SELECT DISTINCT CONCAT(COALESCE(e.courseCode, ''), ':', COALESCE(e.courseName, ''))
+            FROM Exam e WHERE e.lecturerId = :lecturerId
+            ORDER BY CONCAT(COALESCE(e.courseCode, ''), ':', COALESCE(e.courseName, ''))
+            """)
+    List<String> findCourseLabelsByLecturerId(@Param("lecturerId") Long lecturerId);
 }

@@ -31,7 +31,7 @@ public class StudentExamService {
 
     @Transactional(readOnly = true)
     public StudentExamListResponse listExams(User student) {
-        List<StudentExamDto> exams = examRepository.findByPublishedTrueOrderByStartTimeDesc()
+        List<StudentExamDto> exams = examRepository.findPublishedExamsForStudent(student.getId())
                 .stream()
                 .map(this::toDto)
                 .sorted(examListComparator())
@@ -45,7 +45,7 @@ public class StudentExamService {
 
     @Transactional(readOnly = true)
     public StudentExamDto getExam(User student, Long examId) {
-        Exam exam = examRepository.findByIdAndPublishedTrue(examId)
+        Exam exam = examRepository.findPublishedExamForStudent(examId, student.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
         return toDto(exam);
     }

@@ -8,6 +8,7 @@ import com.backend.observerr.auth.dto.RegisterRequest;
 import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.service.AuthCookieService;
 import com.backend.observerr.auth.service.AuthService;
+import com.backend.observerr.security.RequestRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -26,11 +27,14 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookieService authCookieService;
+    private final RequestRateLimiter requestRateLimiter;
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(
             @RequestBody @Valid RegisterRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
+        requestRateLimiter.auth(clientKey(httpRequest, request.getInstitutionalId()));
         AuthResponse authResponse = authService.register(request);
         authService.attachAuthCookies(response, authResponse);
         return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
@@ -39,7 +43,9 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
             @RequestBody @Valid LoginRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
+        requestRateLimiter.auth(clientKey(httpRequest, request.getInstitutionalId()));
         AuthResponse authResponse = authService.login(request);
         authService.attachAuthCookies(response, authResponse);
         return ResponseEntity.ok(authResponse);
@@ -50,6 +56,7 @@ public class AuthController {
             @RequestHeader(value = "Authorization", required = false) String bearerToken,
             HttpServletRequest request,
             HttpServletResponse response) {
+        requestRateLimiter.auth(clientKey(request, "refresh"));
         String refreshToken = resolveRefreshToken(bearerToken, request);
         AuthResponse authResponse = authService.refreshToken(refreshToken);
         authService.attachAuthCookies(response, authResponse);
@@ -89,5 +96,9 @@ public class AuthController {
             return bearerToken;
         }
         return authCookieService.extractRefreshToken(request);
+    }
+
+    private String clientKey(HttpServletRequest request, String subject) {
+        return request.getRemoteAddr() + ":" + subject;
     }
 }

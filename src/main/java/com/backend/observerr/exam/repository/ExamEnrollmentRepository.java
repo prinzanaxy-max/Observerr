@@ -15,4 +15,6 @@ public interface ExamEnrollmentRepository extends JpaRepository<ExamEnrollment, 
     long countByExamId(Long examId);
 
     boolean existsByExamIdAndStudentId(Long examId, Long studentId);
+
+    void deleteByExamId(Long examId);
 }

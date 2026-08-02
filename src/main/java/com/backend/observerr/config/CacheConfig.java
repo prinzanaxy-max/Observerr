@@ -16,6 +16,7 @@ public class CacheConfig {
 
     public static final String STUDENT_RESULTS_PAGE_CACHE = "studentResultsPage";
     public static final String STUDENT_RESULTS_SUMMARY_CACHE = "studentResultsSummary";
+    public static final String STUDENT_RESULT_DETAIL_CACHE = "studentResultDetail";
     public static final String LECTURER_ANALYTICS_OVERVIEW_CACHE = "lecturerAnalyticsOverview";
 
     @Bean
@@ -25,6 +26,7 @@ public class CacheConfig {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 STUDENT_RESULTS_PAGE_CACHE,
                 STUDENT_RESULTS_SUMMARY_CACHE,
+                STUDENT_RESULT_DETAIL_CACHE,
                 LECTURER_ANALYTICS_OVERVIEW_CACHE
         );
         cacheManager.setCaffeine(Caffeine.newBuilder()

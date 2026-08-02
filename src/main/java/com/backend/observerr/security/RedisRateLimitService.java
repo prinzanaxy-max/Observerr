@@ -33,6 +33,21 @@ public class RedisRateLimitService implements RateLimitService {
         return count != null && count <= maxAttempts;
     }
 
+    @Override
+    public boolean isDistributed() {
+        return true;
+    }
+
+    @Override
+    public boolean isReady() {
+        try {
+            return "PONG".equalsIgnoreCase(connection.sync().ping());
+        } catch (RuntimeException ex) {
+            log.error("Redis readiness check failed: {}", ex.getMessage());
+            return false;
+        }
+    }
+
     @PreDestroy
     public void shutdown() {
         connection.close();

@@ -4,6 +4,8 @@ import com.backend.observerr.auth.model.User;
 import com.backend.observerr.integrity.dto.*;
 import com.backend.observerr.proctoring.ProctoringMediaService;
 import com.backend.observerr.proctoring.dto.LiveKitTokenResponse;
+import com.backend.observerr.exam.service.ExamAttemptService;
+import com.backend.observerr.security.RequestRateLimiter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,7 +25,9 @@ import java.util.UUID;
 public class StudentExamSessionController {
 
     private final IntegritySessionService integritySessionService;
+    private final ExamAttemptService examAttemptService;
     private final ProctoringMediaService proctoringMediaService;
+    private final RequestRateLimiter requestRateLimiter;
 
     @PostMapping("/api/student/exams/{examId}/sessions")
     @PreAuthorize("hasRole('STUDENT')")
@@ -32,6 +36,7 @@ public class StudentExamSessionController {
             @PathVariable Long examId,
             @Valid @RequestBody(required = false) StartExamSessionRequest request) {
         StartExamSessionRequest body = request != null ? request : new StartExamSessionRequest();
+        requestRateLimiter.session(student.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(integritySessionService.startSession(student, examId, body));
     }
@@ -42,6 +47,7 @@ public class StudentExamSessionController {
             @AuthenticationPrincipal User student,
             @PathVariable UUID sessionId,
             @Valid @RequestBody IntegrityEventsBatchRequest request) {
+        requestRateLimiter.integrity(student.getId());
         return ResponseEntity.ok(integritySessionService.appendEvents(student, sessionId, request));
     }
 
@@ -59,6 +65,6 @@ public class StudentExamSessionController {
             @AuthenticationPrincipal User student,
             @PathVariable UUID sessionId,
             @Valid @RequestBody CompleteExamSessionRequest request) {
-        return ResponseEntity.ok(integritySessionService.completeSession(student, sessionId, request));
+        return ResponseEntity.ok(examAttemptService.completeAndGrade(student, sessionId, request));
     }
 }

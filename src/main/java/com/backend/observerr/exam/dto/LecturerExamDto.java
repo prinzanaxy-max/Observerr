@@ -23,6 +23,8 @@ public class LecturerExamDto {
     private final int activeFlagsCount;
     private final String startAt;
     private final int durationMinutes;
+    private final boolean published;
+    private final int questionCount;
     private final ExamSecurityDto security;
     private final ExamDetailBadgeDto detail;
 }

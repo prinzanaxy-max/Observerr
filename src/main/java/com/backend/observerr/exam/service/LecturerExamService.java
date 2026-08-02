@@ -6,7 +6,6 @@ import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamDisplayStatus;
 import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamRepository;
-import com.backend.observerr.exam.service.ExamEnrollmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +28,7 @@ public class LecturerExamService {
     private static final DateTimeFormatter ISO_LOCAL = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final ExamRepository examRepository;
+    private final ExamQuestionService examQuestionService;
     private final ExamEnrollmentService examEnrollmentService;
 
     @Transactional(readOnly = true)
@@ -81,11 +81,35 @@ public class LecturerExamService {
                 .build();
 
         Exam saved = examRepository.save(exam);
+        examQuestionService.createQuestions(saved.getId(), request.getQuestions());
+        examEnrollmentService.replaceEnrollments(
+                saved.getId(), lecturer.getId(), request.getStudentInstitutionalIds());
+        if (saved.isPublished() && !examQuestionService.loadQuestions(saved.getId()).isEmpty()) {
+            return toDto(saved);
+        }
         if (saved.isPublished()) {
-            examEnrollmentService.enrollAllStudents(saved);
-            saved = examRepository.findById(saved.getId()).orElse(saved);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "A published exam must contain at least one question");
         }
         return toDto(saved);
+    }
+
+    @Transactional
+    public LecturerExamDto publishExam(User lecturer, Long examId) {
+        Exam exam = examRepository.findByIdAndLecturerId(examId, lecturer.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
+        if (exam.isPublished()) {
+            return toDto(exam);
+        }
+        if (examQuestionService.loadQuestions(examId).isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "A published exam must contain at least one question");
+        }
+        if (!Instant.now().isBefore(exam.getStartTime())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Past exams cannot be published");
+        }
+        exam.setPublished(true);
+        return toDto(examRepository.save(exam));
     }
 
     private LecturerExamDto toDto(Exam exam) {
@@ -109,6 +133,8 @@ public class LecturerExamService {
                 .activeFlagsCount(exam.getActiveFlagsCount())
                 .startAt(startLocal.format(ISO_LOCAL))
                 .durationMinutes(resolveDurationMinutes(exam))
+                .published(exam.isPublished())
+                .questionCount(examQuestionService.loadQuestions(exam.getId()).size())
                 .security(security)
                 .detail(buildDetail(exam, displayStatus, security))
                 .build();
