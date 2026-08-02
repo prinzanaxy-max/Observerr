@@ -60,6 +60,12 @@ public class LecturerExamService {
         Instant startTime = parseStartAt(request.getStartAt());
         int durationMinutes = request.getDurationMinutes();
         ExamSecurityDto security = request.getSecurity();
+        if (request.isPublish()
+                && (request.getStudentInstitutionalIds() == null
+                    || request.getStudentInstitutionalIds().isEmpty())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "A published exam must enroll at least one student");
+        }
 
         Exam exam = Exam.builder()
                 .title(request.getTitle().trim())
@@ -104,6 +110,10 @@ public class LecturerExamService {
         if (examQuestionService.loadQuestions(examId).isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "A published exam must contain at least one question");
+        }
+        if (exam.getEnrolledCount() <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "A published exam must enroll at least one student");
         }
         if (!Instant.now().isBefore(exam.getStartTime())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Past exams cannot be published");
