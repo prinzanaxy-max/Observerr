@@ -2,6 +2,8 @@ package com.backend.observerr.integrity;
 
 import com.backend.observerr.auth.model.User;
 import com.backend.observerr.integrity.dto.*;
+import com.backend.observerr.proctoring.ProctoringMediaService;
+import com.backend.observerr.proctoring.dto.LiveKitTokenResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class StudentExamSessionController {
 
     private final IntegritySessionService integritySessionService;
+    private final ProctoringMediaService proctoringMediaService;
 
     @PostMapping("/api/student/exams/{examId}/sessions")
     @PreAuthorize("hasRole('STUDENT')")
@@ -40,6 +43,14 @@ public class StudentExamSessionController {
             @PathVariable UUID sessionId,
             @Valid @RequestBody IntegrityEventsBatchRequest request) {
         return ResponseEntity.ok(integritySessionService.appendEvents(student, sessionId, request));
+    }
+
+    @PostMapping("/api/student/exam-sessions/{sessionId}/media-token")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<LiveKitTokenResponse> issueMediaToken(
+            @AuthenticationPrincipal User student,
+            @PathVariable UUID sessionId) {
+        return ResponseEntity.ok(proctoringMediaService.issueStudentToken(student, sessionId));
     }
 
     @PostMapping("/api/student/exam-sessions/{sessionId}/complete")

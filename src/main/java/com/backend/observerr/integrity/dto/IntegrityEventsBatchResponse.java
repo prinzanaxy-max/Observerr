@@ -11,4 +11,6 @@ public class IntegrityEventsBatchResponse {
 
     private final int accepted;
     private final int skipped;
+    private final int currentScore;
+    private final boolean requiresReview;
 }

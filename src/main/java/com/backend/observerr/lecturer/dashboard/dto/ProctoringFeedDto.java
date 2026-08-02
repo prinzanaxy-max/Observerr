@@ -10,6 +10,8 @@ import lombok.Getter;
 public class ProctoringFeedDto {
 
     private final String sessionId;
+    private final String participantIdentity;
+    private final String roomName;
     private final Long studentId;
     private final String studentName;
     private final String initials;

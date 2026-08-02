@@ -5,7 +5,9 @@ import com.backend.observerr.auth.model.User;
 import com.backend.observerr.auth.model.UserRepository;
 import com.backend.observerr.auth.service.JwtService;
 import com.backend.observerr.exam.model.Exam;
+import com.backend.observerr.exam.model.ExamEnrollment;
 import com.backend.observerr.exam.model.ExamStatus;
+import com.backend.observerr.exam.repository.ExamEnrollmentRepository;
 import com.backend.observerr.exam.repository.ExamRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,11 +22,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,6 +51,9 @@ class IntegritySessionIntegrationTest {
 
     @Autowired
     private ExamRepository examRepository;
+
+    @Autowired
+    private ExamEnrollmentRepository examEnrollmentRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -95,9 +104,15 @@ class IntegritySessionIntegrationTest {
                 .courseCode("CS401")
                 .courseName("Software Integrity")
                 .status(ExamStatus.LIVE)
-                .startTime(Instant.now())
+                .startTime(Instant.now().minusSeconds(60))
+                .endTime(Instant.now().plusSeconds(7200))
                 .durationMinutes(120)
                 .published(true)
+                .build());
+
+        examEnrollmentRepository.save(ExamEnrollment.builder()
+                .examId(exam.getId())
+                .studentId(student.getId())
                 .build());
 
         studentToken = jwtService.generateAccessToken(student);
@@ -137,9 +152,9 @@ class IntegritySessionIntegrationTest {
                     "startedAt": "2026-07-26T10:00:00Z",
                     "endedAt": "2026-07-26T11:30:00Z",
                     "startingScore": 100,
-                    "finalScore": 42,
-                    "totalEvents": 2,
-                    "totalDeductions": 58,
+                    "finalScore": 70,
+                    "totalEvents": 1,
+                    "totalDeductions": 30,
                     "requiresReview": true,
                     "proctoringAvailable": true
                   },
@@ -152,7 +167,7 @@ class IntegritySessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completeBody))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.finalScore").value(42))
+                .andExpect(jsonPath("$.finalScore").value(70))
                 .andExpect(jsonPath("$.requiresReview").value(true))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
@@ -160,7 +175,7 @@ class IntegritySessionIntegrationTest {
                         .header("Authorization", "Bearer " + lecturerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sessionId").value(sessionId))
-                .andExpect(jsonPath("$.integrityScore").value(42))
+                .andExpect(jsonPath("$.integrityScore").value(70))
                 .andExpect(jsonPath("$.requiresReview").value(true))
                 .andExpect(jsonPath("$.events", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.events[0].eventCode").value("TAB_BLUR_NO_FACE"))
@@ -224,6 +239,173 @@ class IntegritySessionIntegrationTest {
                                 "events", java.util.List.of(buildEvent(UUID.randomUUID(), "TAB_BLUR", 2, 98))
                         ))))
                 .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/media-token", sessionId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void mediaTokensContainRoomScopedLeastPrivilegeGrants() throws Exception {
+        String sessionId = startSession(studentToken);
+
+        String studentResponse = mockMvc.perform(post(
+                        "/api/student/exam-sessions/{sessionId}/media-token", sessionId)
+                        .header("Authorization", "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomName").value("exam-" + exam.getId()))
+                .andExpect(jsonPath("$.participantIdentity").value(sessionId))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode studentClaims = decodeClaims(objectMapper.readTree(studentResponse).get("token").asText());
+        assertEquals(sessionId, studentClaims.get("sub").asText());
+        assertEquals("exam-" + exam.getId(), studentClaims.at("/video/room").asText());
+        assertTrue(studentClaims.at("/video/canPublish").asBoolean());
+        assertFalse(studentClaims.at("/video/canSubscribe").asBoolean());
+        assertEquals("camera", studentClaims.at("/video/canPublishSources/0").asText());
+        assertEquals("microphone", studentClaims.at("/video/canPublishSources/1").asText());
+
+        String lecturerResponse = mockMvc.perform(post(
+                        "/api/lecturer/proctoring/exams/{examId}/media-token", exam.getId())
+                        .header("Authorization", "Bearer " + lecturerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.participantIdentity").value("lecturer-" + lecturer.getId()))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode lecturerClaims = decodeClaims(objectMapper.readTree(lecturerResponse).get("token").asText());
+        assertFalse(lecturerClaims.at("/video/canPublish").asBoolean());
+        assertTrue(lecturerClaims.at("/video/canSubscribe").asBoolean());
+
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/media-token", sessionId)
+                        .header("Authorization", "Bearer " + otherStudentToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void serverCanonicalizesDeductionsAndRejectsUnknownCodes() throws Exception {
+        String sessionId = startSession(studentToken);
+        UUID eventId = UUID.randomUUID();
+        postEvents(sessionId, studentToken, eventId, "GAZE_DEVIATION_BRIEF", 99, 1);
+
+        mockMvc.perform(get("/api/lecturer/students/sessions/{sessionId}", sessionId)
+                        .header("Authorization", "Bearer " + lecturerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.integrityScore").value(99))
+                .andExpect(jsonPath("$.events[0].pointsDeducted").value(1))
+                .andExpect(jsonPath("$.events[0].scoreAfter").value(99))
+                .andExpect(jsonPath("$.events[0].severity").value("LOW"));
+
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/integrity-events", sessionId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "events", java.util.List.of(buildEvent(
+                                        UUID.randomUUID(), "MADE_UP_EVENT", 50, 0))
+                        ))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void acceptsInformationalPartialFaceTransitionsWithoutChangingScore() throws Exception {
+        String sessionId = startSession(studentToken);
+
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/integrity-events", sessionId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "events", java.util.List.of(
+                                        buildEvent(UUID.randomUUID(), "FACE_PARTIAL_DETECTED", 99, 1),
+                                        buildEvent(UUID.randomUUID(), "FACE_PARTIAL_CLEARED", 99, 1))
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accepted").value(2))
+                .andExpect(jsonPath("$.currentScore").value(100))
+                .andExpect(jsonPath("$.requiresReview").value(false));
+    }
+
+    @Test
+    void unavailableProctoringCapsScoreAndForcesReview() throws Exception {
+        String sessionId = startSession(studentToken);
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/integrity-events", sessionId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "events", java.util.List.of(buildEvent(
+                                        UUID.randomUUID(), "PROCTORING_UNAVAILABLE", 15, 85))
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentScore").value(85))
+                .andExpect(jsonPath("$.requiresReview").value(true));
+
+        String completeBody = """
+                {
+                  "summary": {
+                    "sessionId": "%s",
+                    "examId": %d,
+                    "startedAt": "2026-07-26T10:00:00Z",
+                    "endedAt": "2026-07-26T11:00:00Z",
+                    "startingScore": 100,
+                    "finalScore": 85,
+                    "totalEvents": 1,
+                    "totalDeductions": 15,
+                    "requiresReview": true,
+                    "proctoringAvailable": false
+                  }
+                }
+                """.formatted(sessionId, exam.getId());
+
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/complete", sessionId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(completeBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.finalScore").value(85))
+                .andExpect(jsonPath("$.requiresReview").value(true));
+    }
+
+    @Test
+    void rejectsTamperedCompletionSummary() throws Exception {
+        String sessionId = startSession(studentToken);
+        postEvents(sessionId, studentToken, UUID.randomUUID(), "TAB_BLUR", 0, 100);
+
+        String completeBody = """
+                {
+                  "summary": {
+                    "sessionId": "%s",
+                    "examId": %d,
+                    "startedAt": "2026-07-26T10:00:00Z",
+                    "endedAt": "2026-07-26T11:00:00Z",
+                    "startingScore": 100,
+                    "finalScore": 100,
+                    "totalEvents": 1,
+                    "totalDeductions": 0,
+                    "requiresReview": false,
+                    "proctoringAvailable": true
+                  }
+                }
+                """.formatted(sessionId, exam.getId());
+
+        mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/complete", sessionId)
+                        .header("Authorization", "Bearer " + studentToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(completeBody))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void lecturerCannotStartAnotherLecturersExam() throws Exception {
+        User otherLecturer = userRepository.save(User.builder()
+                .institutionalId("LEC-INTEGRITY-2")
+                .email("integrity-other-lecturer@test.com")
+                .firstName("Other")
+                .lastName("Lecturer")
+                .password(passwordEncoder.encode("password"))
+                .role(Role.LECTURER)
+                .build());
+
+        mockMvc.perform(post("/api/lecturer/exams/{examId}/start", exam.getId())
+                        .header("Authorization", "Bearer " + jwtService.generateAccessToken(otherLecturer)))
+                .andExpect(status().isNotFound());
     }
 
     private String startSession(String token) throws Exception {
@@ -274,5 +456,10 @@ class IntegritySessionIntegrationTest {
         event.put("durationMs", 3200);
         event.put("metadata", Map.of("rawType", "test", "examId", exam.getId()));
         return event;
+    }
+
+    private JsonNode decodeClaims(String token) throws Exception {
+        String payload = token.split("\\.")[1];
+        return objectMapper.readTree(Base64.getUrlDecoder().decode(payload));
     }
 }

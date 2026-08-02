@@ -158,7 +158,7 @@ Validation errors (`400`):
 
 Session IDs are **UUIDs** for live ingest. Legacy demo sessions use **numeric** IDs on the lecturer timeline endpoint.
 
-**Start session rules:** exam must exist and be **published** (otherwise `404`); only one **IN_PROGRESS** session per student per exam (`409` if duplicate).
+**Start session rules:** the student must be enrolled and the exam must be published, LIVE, inside its configured time window, and have webcam monitoring enabled. Only one **IN_PROGRESS** session per student per exam is allowed.
 
 ---
 
@@ -367,7 +367,10 @@ New published exams auto-enroll all student accounts when created with `publish:
 |---|---|---|
 | `POST` | `/api/student/exams/{examId}/sessions` | Start proctoring session → UUID `sessionId` |
 | `POST` | `/api/student/exam-sessions/{sessionId}/integrity-events` | Batch append events (idempotent on `clientEventId`) |
+| `POST` | `/api/student/exam-sessions/{sessionId}/media-token` | Short-lived LiveKit publish-only token |
 | `POST` | `/api/student/exam-sessions/{sessionId}/complete` | Complete session + final summary |
+
+Integrity event codes and deductions are canonicalized by the server. Client-supplied score fields are ignored during ingest, and completion summaries that do not match server state are rejected. If proctoring is unavailable, the final score is capped at 85 and the session requires lecturer review.
 
 ### Lecturer students — `/api/lecturer/students` (LECTURER)
 
@@ -411,6 +414,7 @@ Always returns **200** with empty arrays / `liveExam: null` when no data (not 40
 |---|---|---|
 | `GET` | `/exams` | Live exams with active session feed counts |
 | `GET` | `/exams/{examId}/feeds` | Active session metadata (`snapshotUrl` null until thumbnails exist) |
+| `POST` | `/exams/{examId}/media-token` | Short-lived LiveKit subscribe-only token for the exam owner |
 
 ### Lecturer students — extra
 
@@ -486,6 +490,10 @@ scripts/                           Optional Neon seed runners (.mjs); Node not u
 | `AUTH_COOKIE_SAME_SITE` | No | `Lax` | Cookie `SameSite` |
 | `JWT_EXPIRATION` | No | 86400000 | Access token TTL (ms) |
 | `JWT_REFRESH_EXPIRATION` | No | 604800000 | Refresh token TTL (ms) |
+| `LIVEKIT_URL` | For live media | — | LiveKit Cloud WebSocket URL (`wss://...`) |
+| `LIVEKIT_API_KEY` | For live media | — | LiveKit project API key |
+| `LIVEKIT_API_SECRET` | For live media | — | LiveKit project secret (at least 32 bytes) |
+| `LIVEKIT_TOKEN_TTL_SECONDS` | No | 300 | Media token TTL, clamped to 30–900 seconds |
 
 \*Required in production.
 
@@ -497,7 +505,8 @@ scripts/                           Optional Neon seed runners (.mjs); Node not u
 - Stateless JWT sessions; optional Redis refresh-token blocklist
 - CSRF disabled (token API)
 - `/health` and auth routes are public; role enforced on `/api/student/**`, `/api/lecturer/**`
-- Integrity ingest trusts client `pointsDeducted` / `scoreAfter` for v1
+- LiveKit secrets remain server-side; students receive room-scoped publish-only grants and exam owners receive subscribe-only grants.
+- LiveKit token issuance fails closed when credentials are absent or invalid.
 
 ---
 

@@ -10,5 +10,7 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
 
     boolean existsByClientEventId(UUID clientEventId);
 
+    long countBySessionIdAndEventCode(UUID sessionId, String eventCode);
+
     List<IntegrityEvent> findBySessionIdOrderByOccurredAtAscIdAsc(UUID sessionId);
 }

@@ -6,6 +6,7 @@ import com.backend.observerr.exam.service.LecturerExamService;
 import com.backend.observerr.integrity.model.ExamSessionStatus;
 import com.backend.observerr.integrity.repository.ExamSessionRepository;
 import com.backend.observerr.lecturer.dashboard.dto.*;
+import com.backend.observerr.proctoring.LiveKitTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ public class LecturerProctoringService {
     private final LecturerExamService lecturerExamService;
     private final ExamSessionRepository examSessionRepository;
     private final LecturerLiveMonitoringService liveMonitoringService;
+    private final LiveKitTokenService liveKitTokenService;
 
     @Transactional(readOnly = true)
     public ProctoringExamListResponse listLiveExams(User lecturer) {
@@ -51,6 +53,8 @@ public class LecturerProctoringService {
                 .filter(student -> student.getLatestSessionId() != null)
                 .map(student -> ProctoringFeedDto.builder()
                         .sessionId(student.getLatestSessionId())
+                        .participantIdentity(student.getLatestSessionId())
+                        .roomName(liveKitTokenService.roomName(examId))
                         .studentId(student.getStudentId())
                         .studentName(student.getName())
                         .initials(student.getInitials())
@@ -68,6 +72,7 @@ public class LecturerProctoringService {
 
         return ProctoringFeedsResponse.builder()
                 .examId(examId)
+                .roomName(liveKitTokenService.roomName(examId))
                 .feeds(feeds)
                 .build();
     }

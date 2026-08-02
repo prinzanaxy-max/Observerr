@@ -61,7 +61,10 @@ public class ExamController {
 
     @PostMapping("/{examId}/start")
     @PreAuthorize("hasRole('LECTURER')")
-    public ResponseEntity<Map<String, Object>> startExam(@PathVariable Long examId) {
+    public ResponseEntity<Map<String, Object>> startExam(
+            @AuthenticationPrincipal User lecturer,
+            @PathVariable Long examId) {
+        lecturerExamService.getExam(lecturer, examId);
         examLifecycleService.transitionExamToLive(examId);
         return ResponseEntity.ok(Map.of(
                 "success", true,

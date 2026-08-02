@@ -12,5 +12,6 @@ import java.util.List;
 public class ProctoringFeedsResponse {
 
     private final Long examId;
+    private final String roomName;
     private final List<ProctoringFeedDto> feeds;
 }
