@@ -219,6 +219,78 @@ class ExamCoreIntegrationTest {
                 .andExpect(jsonPath("$.exams[0].id").value(exam.getId()));
     }
 
+    @Test
+    void createUpdateAndPublishRequireExplicitEnrollment() throws Exception {
+        Map<String, Object> question = Map.of(
+                "text", "Enrollment question",
+                "options", Map.of("A", "One", "B", "Two", "C", "Three", "D", "Four"),
+                "correctAnswer", "A",
+                "points", 1);
+        Map<String, Object> base = new LinkedHashMap<>();
+        base.put("title", "Explicit enrollment exam");
+        base.put("course", "CS600: Enrollment");
+        base.put("startAt", Instant.now().plusSeconds(7200).toString());
+        base.put("durationMinutes", 60);
+        base.put("security", Map.of(
+                "webcamMonitoring", true,
+                "tabSwitchTracking", true,
+                "blockCopyPaste", true));
+        base.put("questions", List.of(question));
+        base.put("publish", true);
+        base.put("studentInstitutionalIds", List.of());
+
+        mockMvc.perform(post("/api/lecturer/exams")
+                        .header("Authorization", "Bearer " + lecturerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(base)))
+                .andExpect(status().isBadRequest());
+
+        base.put("publish", false);
+        String draftJson = mockMvc.perform(post("/api/lecturer/exams")
+                        .header("Authorization", "Bearer " + lecturerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(base)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.published").value(false))
+                .andExpect(jsonPath("$.enrolledCount").value(0))
+                .andReturn().getResponse().getContentAsString();
+        Long draftId = objectMapper.readTree(draftJson).get("id").asLong();
+
+        mockMvc.perform(post("/api/lecturer/exams/{examId}/publish", draftId)
+                        .header("Authorization", "Bearer " + lecturerToken))
+                .andExpect(status().isBadRequest());
+
+        String enrollmentBody = objectMapper.writeValueAsString(Map.of(
+                "studentInstitutionalIds", List.of(student.getInstitutionalId())));
+        mockMvc.perform(put("/api/lecturer/exams/{examId}/enrollments", draftId)
+                        .header("Authorization", "Bearer " + lecturerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(enrollmentBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrolledCount").value(1));
+        mockMvc.perform(post("/api/lecturer/exams/{examId}/publish", draftId)
+                        .header("Authorization", "Bearer " + lecturerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.published").value(true));
+
+        mockMvc.perform(put("/api/lecturer/exams/{examId}/enrollments", draftId)
+                        .header("Authorization", "Bearer " + lecturerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"studentInstitutionalIds\":[]}"))
+                .andExpect(status().isBadRequest());
+
+        base.put("publish", true);
+        base.put("title", "Published with enrollment");
+        base.put("studentInstitutionalIds", List.of(student.getInstitutionalId()));
+        mockMvc.perform(post("/api/lecturer/exams")
+                        .header("Authorization", "Bearer " + lecturerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(base)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.published").value(true))
+                .andExpect(jsonPath("$.enrolledCount").value(1));
+    }
+
     private void complete(String completion) throws Exception {
         mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/complete", sessionId)
                         .header("Authorization", "Bearer " + studentToken)

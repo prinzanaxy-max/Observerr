@@ -12,5 +12,8 @@ import java.util.List;
 public class StudentExamListResponse {
 
     private final List<StudentExamDto> exams;
-    private final int totalElements;
+    private final long totalElements;
+    private final Integer page;
+    private final Integer size;
+    private final Integer totalPages;
 }

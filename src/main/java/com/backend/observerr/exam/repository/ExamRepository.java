@@ -3,6 +3,8 @@ package com.backend.observerr.exam.repository;
 import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -38,6 +40,27 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
             ORDER BY e.startTime DESC
             """)
     List<Exam> findPublishedExamsForStudent(@Param("studentId") Long studentId);
+
+    @Query(
+            value = """
+                    SELECT e FROM Exam e
+                    JOIN ExamEnrollment en ON en.examId = e.id
+                    WHERE en.studentId = :studentId AND e.published = true
+                    ORDER BY CASE
+                        WHEN e.startTime <= :now AND (e.endTime IS NULL OR e.endTime > :now) THEN 0
+                        WHEN e.startTime > :now THEN 1
+                        ELSE 2
+                    END, e.startTime DESC
+                    """,
+            countQuery = """
+                    SELECT COUNT(e) FROM Exam e
+                    JOIN ExamEnrollment en ON en.examId = e.id
+                    WHERE en.studentId = :studentId AND e.published = true
+                    """)
+    Page<Exam> findPublishedExamsForStudent(
+            @Param("studentId") Long studentId,
+            @Param("now") Instant now,
+            Pageable pageable);
 
     List<Exam> findByPublishedTrueOrderByStartTimeDesc();
 

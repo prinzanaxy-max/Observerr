@@ -34,6 +34,10 @@ public class ExamEnrollmentService {
                 .map(String::trim)
                 .filter(id -> !id.isBlank())
                 .forEach(requestedIds::add);
+        if (exam.isPublished() && requestedIds.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "A published exam must enroll at least one student");
+        }
 
         List<User> students = requestedIds.isEmpty()
                 ? List.of()
