@@ -49,7 +49,7 @@ class ResultReleaseCacheIntegrationTest {
         Exam exam = examRepository.save(Exam.builder()
                 .title("Cache exam").lecturerId(lecturer.getId())
                 .courseCode("CACHE").courseName("Caching")
-                .durationMinutes(60).status(ExamStatus.COMPLETED)
+                .durationMinutes(60).status(ExamStatus.ENDED)
                 .startTime(Instant.now().minusSeconds(7200))
                 .endTime(Instant.now().minusSeconds(3600))
                 .published(true).build());
