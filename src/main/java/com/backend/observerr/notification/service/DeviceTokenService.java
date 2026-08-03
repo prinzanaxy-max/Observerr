@@ -18,27 +18,37 @@ public class DeviceTokenService {
 
     @Transactional
     public void registerToken(User user, RegisterDeviceTokenRequest request) {
-        deviceTokenRepository.findByToken(request.getToken())
+        String endpoint = request.getEndpoint().trim();
+        String p256dh = request.getKeys().getP256dh().trim();
+        String auth = request.getKeys().getAuth().trim();
+
+        deviceTokenRepository.findByEndpoint(endpoint)
                 .ifPresentOrElse(
                         existing -> {
                             existing.setUserId(user.getId());
+                            existing.setP256dh(p256dh);
+                            existing.setAuth(auth);
                             deviceTokenRepository.save(existing);
-                            log.info("Updated FCM token mapping userId={} tokenId={}", user.getId(), existing.getId());
+                            log.info("Updated Web Push subscription userId={} tokenId={}",
+                                    user.getId(), existing.getId());
                         },
                         () -> {
                             DeviceToken created = DeviceToken.builder()
                                     .userId(user.getId())
-                                    .token(request.getToken())
+                                    .endpoint(endpoint)
+                                    .p256dh(p256dh)
+                                    .auth(auth)
                                     .build();
                             deviceTokenRepository.save(created);
-                            log.info("Registered FCM token userId={} tokenId={}", user.getId(), created.getId());
+                            log.info("Registered Web Push subscription userId={} tokenId={}",
+                                    user.getId(), created.getId());
                         }
                 );
     }
 
     @Transactional
     public void unregisterToken(User user, RegisterDeviceTokenRequest request) {
-        deviceTokenRepository.findByToken(request.getToken())
+        deviceTokenRepository.findByEndpoint(request.getEndpoint().trim())
                 .filter(existing -> existing.getUserId().equals(user.getId()))
                 .ifPresent(deviceTokenRepository::delete);
     }

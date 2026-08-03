@@ -128,21 +128,16 @@
     		<optional>true</optional>
 		</dependency>
 
-		<!-- Firebase Cloud Messaging (FCM only — exclude unused GCP modules to reduce build memory) -->
+		<!-- Native Web Push (VAPID) -->
 		<dependency>
-			<groupId>com.google.firebase</groupId>
-			<artifactId>firebase-admin</artifactId>
-			<version>9.4.3</version>
-			<exclusions>
-				<exclusion>
-					<groupId>com.google.cloud</groupId>
-					<artifactId>google-cloud-firestore</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.google.cloud</groupId>
-					<artifactId>google-cloud-storage</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>nl.martijndwars</groupId>
+			<artifactId>web-push</artifactId>
+			<version>5.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.78.1</version>
 		</dependency>
 
 		<!-- Cloudinary -->

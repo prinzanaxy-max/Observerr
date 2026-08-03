@@ -241,7 +241,7 @@ Health check: `GET http://localhost:8080/health`
 | `AUTH_COOKIE_SECURE` | `true` |
 | `AUTH_COOKIE_SAME_SITE` | `None` (cross-site cookies with HTTPS frontend) |
 | `CLOUDINARY_*` | Profile picture uploads |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM push (optional; no-op client if unset) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push (optional; no-op client if unset) |
 
 See gitignored `env.md` for a full Railway Raw Editor template.
 
@@ -388,7 +388,7 @@ Integrity event codes and deductions are canonicalized by the server. Client-sup
 | `GET` | `/` | List exams (`status`, `search`) |
 | `GET` | `/{examId}` | Exam detail |
 | `POST` | `/` | Create exam (`publish: true` enrolls all student users) |
-| `POST` | `/{examId}/start` | Transition exam to LIVE + FCM notifications |
+| `POST` | `/{examId}/start` | Transition exam to LIVE + Web Push notifications |
 
 ### Lecturer analytics — `/api/lecturer/analytics` (LECTURER)
 
@@ -428,7 +428,7 @@ Always returns **200** with empty arrays / `liveExam: null` when no data (not 40
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/token` | Register FCM device token |
+| `POST` | `/token` | Register Web Push subscription |
 
 ---
 
@@ -461,7 +461,7 @@ src/main/java/com/backend/observerr/
 │   ├── students/      Roster + session timeline + needs-review
 │   ├── analytics/     Analytics overview API
 │   └── dashboard/     Home dashboard, live sessions, proctoring metadata
-├── notification/      FCM + device tokens
+├── notification/      Web Push + device subscriptions
 ├── config/            Security, CORS, cache, Firebase, Cloudinary
 └── exception/         Global error handling
 
@@ -483,11 +483,11 @@ scripts/                           Optional Neon seed runners (.mjs); Node not u
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | No | `validate` | Use `validate` with Flyway |
 | `SPRING_WEB_CORS_ALLOWED_ORIGINS` | No | localhost + Pages dev | CORS origins |
 | `REDIS_URL` | No | — | Refresh-token blocklist (in-memory if empty) |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | No | — | FCM; disabled if empty |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | No | — | Web Push; disabled if empty |
 | `CLOUDINARY_CLOUD_NAME` | No | — | Profile pictures |
 | `CLOUDINARY_API_KEY` | No | — | Profile pictures |
 | `CLOUDINARY_API_SECRET` | No | — | Profile pictures |
-| `APP_FRONTEND_BASE_URL` | No | Pages dev URL | FCM deep links |
+| `APP_FRONTEND_BASE_URL` | No | Pages dev URL | Web Push deep links |
 | `AUTH_COOKIE_SECURE` | No | `false` | Cookie `Secure` flag |
 | `AUTH_COOKIE_SAME_SITE` | No | `Lax` | Cookie `SameSite` |
 | `JWT_EXPIRATION` | No | 86400000 | Access token TTL (ms) |

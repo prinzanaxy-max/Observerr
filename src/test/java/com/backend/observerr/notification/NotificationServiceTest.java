@@ -5,11 +5,8 @@ import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamEnrollmentRepository;
 import com.backend.observerr.exam.repository.ExamRepository;
 import com.backend.observerr.notification.model.DeviceToken;
+import com.backend.observerr.notification.model.UserNotification;
 import com.backend.observerr.notification.repository.DeviceTokenRepository;
-import com.google.firebase.messaging.BatchResponse;
-import com.google.firebase.messaging.FirebaseMessagingException;
-import com.google.firebase.messaging.Message;
-import com.google.firebase.messaging.MulticastMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,18 +21,18 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.lenient;
-import com.backend.observerr.notification.model.UserNotification;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
     @Mock
-    private FcmClient fcmClient;
+    private WebPushClient webPushClient;
 
     @Mock
     private ExamRepository examRepository;
@@ -48,9 +45,6 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationInboxService inboxService;
-
-    @Mock
-    private BatchResponse batchResponse;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -73,68 +67,80 @@ class NotificationServiceTest {
     }
 
     @Test
-    void notifyStudentsExamStarted_skipsWhenNoEnrolledStudents() throws FirebaseMessagingException {
+    void notifyStudentsExamStarted_skipsWhenNoEnrolledStudents() throws Exception {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.findStudentIdsByExamId(42L)).thenReturn(List.of());
 
         notificationService.notifyStudentsExamStarted(42L);
 
         verify(deviceTokenRepository, never()).findByUserIdIn(any());
-        verify(fcmClient, never()).sendEachForMulticast(any());
+        verify(webPushClient, never()).send(any(), anyString());
     }
 
     @Test
-    void notifyStudentsExamStarted_skipsWhenNoDeviceTokens() throws FirebaseMessagingException {
+    void notifyStudentsExamStarted_skipsWhenNoDeviceTokens() throws Exception {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.findStudentIdsByExamId(42L)).thenReturn(List.of(1L, 2L));
         when(deviceTokenRepository.findByUserIdIn(List.of(1L, 2L))).thenReturn(List.of());
 
         notificationService.notifyStudentsExamStarted(42L);
 
-        verify(fcmClient, never()).sendEachForMulticast(any());
+        verify(webPushClient, never()).send(any(), anyString());
     }
 
     @Test
-    void notifyStudentsExamStarted_batchesTokensInGroupsOfFiveHundred() throws FirebaseMessagingException {
+    void notifyStudentsExamStarted_sendsToEachSubscription() throws Exception {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.findStudentIdsByExamId(42L)).thenReturn(List.of(1L));
 
         List<DeviceToken> tokens = new ArrayList<>();
-        for (int i = 0; i < 501; i++) {
-            tokens.add(DeviceToken.builder().id((long) i).userId(1L).token("token-" + i).build());
+        for (int i = 0; i < 3; i++) {
+            tokens.add(DeviceToken.builder()
+                    .id((long) i)
+                    .userId(1L)
+                    .endpoint("https://push.example/" + i)
+                    .p256dh("p256dh-" + i)
+                    .auth("auth-" + i)
+                    .build());
         }
         when(deviceTokenRepository.findByUserIdIn(List.of(1L))).thenReturn(tokens);
-        when(fcmClient.isEnabled()).thenReturn(true);
-        when(fcmClient.sendEachForMulticast(any(MulticastMessage.class))).thenReturn(batchResponse);
-        when(batchResponse.getFailureCount()).thenReturn(0);
+        when(webPushClient.isEnabled()).thenReturn(true);
+        when(webPushClient.send(any(), anyString())).thenReturn(201);
 
         notificationService.notifyStudentsExamStarted(42L);
 
-        verify(fcmClient, times(2)).sendEachForMulticast(any(MulticastMessage.class));
+        verify(webPushClient, times(3)).send(any(), anyString());
     }
 
     @Test
-    void notifyLecturerExamStarted_sendsToLecturerTokens() throws FirebaseMessagingException {
+    void notifyLecturerExamStarted_sendsToLecturerTokens() throws Exception {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.countByExamId(42L)).thenReturn(12L);
         when(deviceTokenRepository.findByUserId(7L)).thenReturn(List.of(
-                DeviceToken.builder().id(1L).userId(7L).token("lecturer-token").build()
+                DeviceToken.builder()
+                        .id(1L)
+                        .userId(7L)
+                        .endpoint("https://push.example/lecturer")
+                        .p256dh("p256dh")
+                        .auth("auth")
+                        .build()
         ));
-        when(fcmClient.isEnabled()).thenReturn(true);
+        when(webPushClient.isEnabled()).thenReturn(true);
+        when(webPushClient.send(any(), anyString())).thenReturn(201);
 
         notificationService.notifyLecturerExamStarted(42L);
 
-        verify(fcmClient).send(any(Message.class));
+        verify(webPushClient).send(any(), anyString());
     }
 
     @Test
-    void notifyLecturerExamStarted_skipsWhenNoTokens() throws FirebaseMessagingException {
+    void notifyLecturerExamStarted_skipsWhenNoTokens() throws Exception {
         when(examRepository.findById(42L)).thenReturn(Optional.of(exam));
         when(enrollmentRepository.countByExamId(42L)).thenReturn(0L);
         when(deviceTokenRepository.findByUserId(7L)).thenReturn(List.of());
 
         notificationService.notifyLecturerExamStarted(42L);
 
-        verify(fcmClient, never()).send(any(Message.class));
+        verify(webPushClient, never()).send(any(), anyString());
     }
 }

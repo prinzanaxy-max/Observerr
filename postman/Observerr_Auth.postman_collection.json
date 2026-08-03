@@ -484,13 +484,13 @@
       "name": "Devices",
       "item": [
         {
-          "name": "Register FCM Token",
+          "name": "Register Web Push Subscription",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"fcm-device-token-from-firebase\"\n}"
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example\",\n  \"keys\": {\n    \"p256dh\": \"p256dh-public-key\",\n    \"auth\": \"auth-secret\"\n  }\n}"
             },
             "url": "{{baseUrl}}/api/devices/token"
           }

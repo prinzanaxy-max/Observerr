@@ -6,32 +6,22 @@ import com.backend.observerr.exam.repository.ExamRepository;
 import com.backend.observerr.notification.dto.NotificationPayload;
 import com.backend.observerr.notification.model.DeviceToken;
 import com.backend.observerr.notification.repository.DeviceTokenRepository;
-import com.google.firebase.messaging.BatchResponse;
-import com.google.firebase.messaging.FirebaseMessagingException;
-import com.google.firebase.messaging.Message;
-import com.google.firebase.messaging.MulticastMessage;
-import com.google.firebase.messaging.Notification;
-import com.google.firebase.messaging.WebpushConfig;
-import com.google.firebase.messaging.WebpushFcmOptions;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
-    static final int MULTICAST_BATCH_SIZE = 500;
-
-    private final FcmClient fcmClient;
+    private final WebPushClient webPushClient;
     private final ExamRepository examRepository;
     private final ExamEnrollmentRepository enrollmentRepository;
     private final DeviceTokenRepository deviceTokenRepository;
@@ -53,8 +43,9 @@ public class NotificationService {
             }
         }
         if (!permittedStudentIds.isEmpty()) {
-            sendMulticastInBatches(
-                    deviceTokenRepository.findByUserIdIn(permittedStudentIds), payload, "EXAM_STARTED");
+            for (DeviceToken subscription : deviceTokenRepository.findByUserIdIn(permittedStudentIds)) {
+                sendPush(subscription, payload);
+            }
         }
     }
 
@@ -114,8 +105,8 @@ public class NotificationService {
                 payload.getWebPushLink(), dedupeKey) == null) {
             return;
         }
-        for (DeviceToken token : deviceTokenRepository.findByUserId(userId)) {
-            sendMessage(token, payload);
+        for (DeviceToken subscription : deviceTokenRepository.findByUserId(userId)) {
+            sendPush(subscription, payload);
         }
     }
 
@@ -148,132 +139,78 @@ public class NotificationService {
                 .build();
     }
 
-    private void sendMulticastInBatches(List<DeviceToken> deviceTokens, NotificationPayload payload, String type) {
-        List<String> tokenValues = deviceTokens.stream().map(DeviceToken::getToken).toList();
-
-        for (int index = 0; index < tokenValues.size(); index += MULTICAST_BATCH_SIZE) {
-            int end = Math.min(index + MULTICAST_BATCH_SIZE, tokenValues.size());
-            List<String> batch = tokenValues.subList(index, end);
-            sendMulticastBatch(deviceTokens, batch, payload, type);
-        }
-    }
-
-    private void sendMulticastBatch(
-            List<DeviceToken> allTokens,
-            List<String> batchTokenValues,
-            NotificationPayload payload,
-            String type) {
-        if (!fcmClient.isEnabled()) {
-            log.warn("FCM disabled — skipping {} multicast batch size={}", type, batchTokenValues.size());
+    private void sendPush(DeviceToken subscription, NotificationPayload payload) {
+        if (!webPushClient.isEnabled()) {
+            log.warn("Web Push disabled — skipping notification to userId={}", subscription.getUserId());
             return;
         }
 
-        MulticastMessage message = buildMulticastMessage(batchTokenValues, payload);
         try {
-            BatchResponse response = fcmClient.sendEachForMulticast(message);
-            if (response == null) {
+            int status = webPushClient.send(subscription, toJsonPayload(payload));
+            if (status == 404 || status == 410) {
+                cleanupDeadSubscription(subscription);
                 return;
             }
-            handleBatchResponse(allTokens, batchTokenValues, response, type);
-        } catch (FirebaseMessagingException ex) {
-            log.error("FCM multicast failed type={} batchSize={} error={}", type, batchTokenValues.size(), ex.getMessage());
-        }
-    }
-
-    private void sendMessage(DeviceToken deviceToken, NotificationPayload payload) {
-        if (!fcmClient.isEnabled()) {
-            log.warn("FCM disabled — skipping notification to userId={}", deviceToken.getUserId());
-            return;
-        }
-
-        Message message = buildSingleMessage(deviceToken.getToken(), payload);
-        try {
-            fcmClient.send(message);
-            log.debug("FCM notification sent userId={} tokenId={}", deviceToken.getUserId(), deviceToken.getId());
-        } catch (FirebaseMessagingException ex) {
-            log.warn("FCM send failed userId={} tokenId={} error={}",
-                    deviceToken.getUserId(), deviceToken.getId(), ex.getMessage());
-            cleanupDeadToken(deviceToken.getToken(), ex);
-        }
-    }
-
-    private void handleBatchResponse(
-            List<DeviceToken> allTokens,
-            List<String> batchTokenValues,
-            BatchResponse response,
-            String type) {
-        log.info("FCM multicast batch type={} success={} failure={}",
-                type, response.getSuccessCount(), response.getFailureCount());
-
-        if (response.getFailureCount() == 0) {
-            return;
-        }
-
-        var responses = response.getResponses();
-        for (int i = 0; i < responses.size(); i++) {
-            if (responses.get(i).isSuccessful()) {
-                continue;
+            if (status >= 200 && status < 300) {
+                log.debug("Web Push sent userId={} tokenId={} status={}",
+                        subscription.getUserId(), subscription.getId(), status);
+            } else {
+                log.warn("Web Push unexpected status userId={} tokenId={} status={}",
+                        subscription.getUserId(), subscription.getId(), status);
             }
-            FirebaseMessagingException exception = responses.get(i).getException();
-            String failedToken = batchTokenValues.get(i);
-            log.warn("FCM multicast token failed type={} error={}", type,
-                    exception != null ? exception.getMessage() : "unknown");
-            cleanupDeadToken(failedToken, exception);
+        } catch (Exception ex) {
+            log.warn("Web Push send failed userId={} tokenId={} error={}",
+                    subscription.getUserId(), subscription.getId(), ex.getMessage());
+            if (isGoneError(ex)) {
+                cleanupDeadSubscription(subscription);
+            }
         }
     }
 
-    private void cleanupDeadToken(String token, FirebaseMessagingException exception) {
-        if (!isDeadTokenError(exception)) {
-            return;
+    private String toJsonPayload(NotificationPayload payload) {
+        StringBuilder dataJson = new StringBuilder("{");
+        Map<String, String> data = payload.getData();
+        if (data != null && !data.isEmpty()) {
+            boolean first = true;
+            for (Map.Entry<String, String> entry : data.entrySet()) {
+                if (!first) {
+                    dataJson.append(',');
+                }
+                first = false;
+                dataJson.append(jsonString(entry.getKey())).append(':').append(jsonString(entry.getValue()));
+            }
         }
-        deviceTokenRepository.findByToken(token).ifPresent(existing -> {
-            deviceTokenRepository.delete(existing);
-            log.info("Removed dead FCM token userId={} tokenId={}", existing.getUserId(), existing.getId());
-        });
+        dataJson.append('}');
+
+        return "{"
+                + "\"title\":" + jsonString(payload.getTitle()) + ","
+                + "\"body\":" + jsonString(payload.getBody()) + ","
+                + "\"deepLink\":" + jsonString(payload.getWebPushLink()) + ","
+                + "\"data\":" + dataJson
+                + "}";
     }
 
-    private boolean isDeadTokenError(FirebaseMessagingException exception) {
-        if (exception == null || exception.getMessagingErrorCode() == null) {
-            return false;
+    private static String jsonString(String value) {
+        if (value == null) {
+            return "null";
         }
-        return switch (exception.getMessagingErrorCode()) {
-            case INVALID_ARGUMENT, UNREGISTERED -> true;
-            default -> false;
-        };
+        String escaped = value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+        return "\"" + escaped + "\"";
     }
 
-    private Message buildSingleMessage(String token, NotificationPayload payload) {
-        return Message.builder()
-                .setToken(token)
-                .setNotification(buildNotification(payload))
-                .putAllData(safeData(payload.getData()))
-                .setWebpushConfig(buildWebPushConfig(payload.getWebPushLink()))
-                .build();
+    private void cleanupDeadSubscription(DeviceToken subscription) {
+        deviceTokenRepository.delete(subscription);
+        log.info("Removed expired Web Push subscription userId={} tokenId={}",
+                subscription.getUserId(), subscription.getId());
     }
 
-    private MulticastMessage buildMulticastMessage(List<String> tokens, NotificationPayload payload) {
-        return MulticastMessage.builder()
-                .addAllTokens(tokens)
-                .setNotification(buildNotification(payload))
-                .putAllData(safeData(payload.getData()))
-                .setWebpushConfig(buildWebPushConfig(payload.getWebPushLink()))
-                .build();
-    }
-
-    private Notification buildNotification(NotificationPayload payload) {
-        return Notification.builder()
-                .setTitle(payload.getTitle())
-                .setBody(payload.getBody())
-                .build();
-    }
-
-    private WebpushConfig buildWebPushConfig(String link) {
-        return WebpushConfig.builder()
-                .setFcmOptions(WebpushFcmOptions.builder().setLink(link).build())
-                .build();
-    }
-
-    private Map<String, String> safeData(Map<String, String> data) {
-        return data == null ? new HashMap<>() : new HashMap<>(data);
+    private boolean isGoneError(Exception ex) {
+        String message = ex.getMessage() == null ? "" : ex.getMessage();
+        return message.contains("410") || message.contains("404") || message.toLowerCase().contains("gone");
     }
 }

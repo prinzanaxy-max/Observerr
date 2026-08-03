@@ -23,8 +23,14 @@ public class DeviceToken {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(nullable = false, unique = true, length = 512)
-    private String token;
+    @Column(nullable = false, unique = true, length = 2048)
+    private String endpoint;
+
+    @Column(nullable = false, length = 255)
+    private String p256dh;
+
+    @Column(nullable = false, length = 255)
+    private String auth;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

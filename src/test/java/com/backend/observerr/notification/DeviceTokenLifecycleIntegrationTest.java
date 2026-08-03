@@ -31,19 +31,24 @@ class DeviceTokenLifecycleIntegrationTest {
     @Autowired private JwtService jwtService;
 
     @Test
-    void tokenCanRegisterTransferAndOnlyCurrentOwnerCanUnregister() throws Exception {
+    void subscriptionCanRegisterTransferAndOnlyCurrentOwnerCanUnregister() throws Exception {
         User first = student("STU-DEVICE-1", "device-1@test.com");
         User second = student("STU-DEVICE-2", "device-2@test.com");
         String firstJwt = jwtService.generateAccessToken(first);
         String secondJwt = jwtService.generateAccessToken(second);
-        String body = "{\"token\":\"shared-fcm-token\"}";
+        String body = """
+                {
+                  "endpoint": "https://push.example/shared-subscription",
+                  "keys": { "p256dh": "p256dh-key", "auth": "auth-key" }
+                }
+                """;
 
         mockMvc.perform(post("/api/devices/token")
                         .header("Authorization", "Bearer " + firstJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
-        assertThat(deviceTokenRepository.findByToken("shared-fcm-token"))
+        assertThat(deviceTokenRepository.findByEndpoint("https://push.example/shared-subscription"))
                 .get().extracting(token -> token.getUserId()).isEqualTo(first.getId());
 
         mockMvc.perform(post("/api/devices/token")
@@ -51,7 +56,7 @@ class DeviceTokenLifecycleIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
-        assertThat(deviceTokenRepository.findByToken("shared-fcm-token"))
+        assertThat(deviceTokenRepository.findByEndpoint("https://push.example/shared-subscription"))
                 .get().extracting(token -> token.getUserId()).isEqualTo(second.getId());
 
         mockMvc.perform(delete("/api/devices/token")
@@ -59,14 +64,14 @@ class DeviceTokenLifecycleIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNoContent());
-        assertThat(deviceTokenRepository.findByToken("shared-fcm-token")).isPresent();
+        assertThat(deviceTokenRepository.findByEndpoint("https://push.example/shared-subscription")).isPresent();
 
         mockMvc.perform(delete("/api/devices/token")
                         .header("Authorization", "Bearer " + secondJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNoContent());
-        assertThat(deviceTokenRepository.findByToken("shared-fcm-token")).isEmpty();
+        assertThat(deviceTokenRepository.findByEndpoint("https://push.example/shared-subscription")).isEmpty();
     }
 
     private User student(String institutionalId, String email) {

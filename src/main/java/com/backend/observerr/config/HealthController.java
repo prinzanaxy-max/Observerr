@@ -22,8 +22,11 @@ public class HealthController {
     @Value("${spring.data.redis.url:}")
     private String redisUrl;
 
-    @Value("${firebase.service-account-json:}")
-    private String firebaseCredentials;
+    @Value("${webpush.vapid.public-key:}")
+    private String vapidPublicKey;
+
+    @Value("${webpush.vapid.private-key:}")
+    private String vapidPrivateKey;
 
     public HealthController(DataSource dataSource, RateLimitService rateLimitService) {
         this.dataSource = dataSource;
@@ -54,8 +57,9 @@ public class HealthController {
         boolean redisConfigured = redisUrl != null && !redisUrl.isBlank();
         boolean redisUp = !redisConfigured || (rateLimitService.isDistributed() && rateLimitService.isReady());
         checks.put("redis", !redisConfigured ? "OPTIONAL_DISABLED" : redisUp ? "UP" : "DOWN");
-        checks.put("fcm", firebaseCredentials == null || firebaseCredentials.isBlank()
-                ? "OPTIONAL_DISABLED" : "CONFIGURED");
+        boolean webPushConfigured = vapidPublicKey != null && !vapidPublicKey.isBlank()
+                && vapidPrivateKey != null && !vapidPrivateKey.isBlank();
+        checks.put("webpush", webPushConfigured ? "CONFIGURED" : "OPTIONAL_DISABLED");
         Map<String, Object> response = new HashMap<>();
         boolean ready = databaseUp && redisUp;
         response.put("status", ready ? "UP" : "DOWN");

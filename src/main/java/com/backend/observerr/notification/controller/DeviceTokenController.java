@@ -27,7 +27,7 @@ public class DeviceTokenController {
             @AuthenticationPrincipal User user,
             @RequestBody @Valid RegisterDeviceTokenRequest request) {
         deviceTokenService.registerToken(user, request);
-        return ResponseEntity.ok(Map.of("success", true, "message", "Device token registered"));
+        return ResponseEntity.ok(Map.of("success", true, "message", "Push subscription registered"));
     }
 
     @DeleteMapping("/token")
