@@ -108,14 +108,16 @@ public class IntegritySessionService {
                 .toList();
         Set<UUID> seenIds = new HashSet<>(integrityEventRepository.findExistingClientEventIds(requestedIds));
         List<IntegrityEvent> pendingEvents = new ArrayList<>();
+        Map<String, Integer> batchCapUsage = new HashMap<>();
 
         for (IntegrityEventIngestDto eventDto : request.getEvents()) {
             if (!seenIds.add(eventDto.getClientEventId())) {
                 skipped++;
                 continue;
             }
-            IntegrityScoringPolicy.Rule rule = resolveRule(session, eventDto, deductions);
+            IntegrityScoringPolicy.Rule rule = resolveRule(session, eventDto, deductions, batchCapUsage);
             deductions += rule.points();
+            batchCapUsage.merge(rule.capKey(), rule.points(), Integer::sum);
             boolean eventKeepsProctoring = eventKeepsProctoring(eventDto.getEventCode());
             int currentScore = scoreFor(
                     session,

@@ -118,28 +118,40 @@ public class IntegrityScoringPolicy {
         return switch (normalized) {
             case "GAZE_DEVIATION_BRIEF", "GAZE_DEVIATION_MODERATE", "GAZE_DEVIATION_SUSTAINED" -> {
                 if (normalized.equals("GAZE_DEVIATION_BRIEF") && (duration < 2_000 || duration >= 4_000)) {
-                    throw rejectDuration(normalized);
+                    throw invalid("durationMs does not match " + normalized);
                 }
                 if (normalized.equals("GAZE_DEVIATION_MODERATE") && (duration < 4_000 || duration >= 10_000)) {
-                    throw rejectDuration(normalized);
+                    throw invalid("durationMs does not match " + normalized);
                 }
                 if (normalized.equals("GAZE_DEVIATION_SUSTAINED") && duration < 10_000) {
-                    throw rejectDuration(normalized);
+                    throw invalid("durationMs does not match " + normalized);
                 }
                 yield new Rule("Gaze deviation", "LOW", 3, false, "GAZE");
             }
-            case "FACE_PARTIAL_BRIEF" -> duration <= 5_000
-                    ? new Rule("Face partially out of frame", "LOW", 3, false, "FACE_ABSENT")
-                    : rejectDuration(normalized);
-            case "FACE_ABSENT_SHORT", "FACE_ABSENT_BRIEF" -> duration >= 2_000 && duration < 5_000
-                    ? new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT")
-                    : rejectDuration(normalized);
-            case "FACE_ABSENT_MEDIUM" -> duration >= 5_000 && duration < 15_000
-                    ? new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT")
-                    : rejectDuration(normalized);
-            case "FACE_ABSENT_LONG" -> duration >= 15_000
-                    ? new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT")
-                    : rejectDuration(normalized);
+            case "FACE_PARTIAL_BRIEF" -> {
+                if (duration > 5_000) {
+                    throw invalid("durationMs does not match " + normalized);
+                }
+                yield new Rule("Face partially out of frame", "LOW", 3, false, "FACE_ABSENT");
+            }
+            case "FACE_ABSENT_SHORT", "FACE_ABSENT_BRIEF" -> {
+                if (duration < 2_000 || duration >= 5_000) {
+                    throw invalid("durationMs does not match " + normalized);
+                }
+                yield new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT");
+            }
+            case "FACE_ABSENT_MEDIUM" -> {
+                if (duration < 5_000 || duration >= 15_000) {
+                    throw invalid("durationMs does not match " + normalized);
+                }
+                yield new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT");
+            }
+            case "FACE_ABSENT_LONG" -> {
+                if (duration < 15_000) {
+                    throw invalid("durationMs does not match " + normalized);
+                }
+                yield new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT");
+            }
             default -> throw invalid("Unsupported integrity eventCode");
         };
     }
@@ -195,10 +207,6 @@ public class IntegrityScoringPolicy {
             throw invalid("durationMs is required for this eventCode");
         }
         return durationMs;
-    }
-
-    private Rule rejectDuration(String eventCode) {
-        throw invalid("durationMs does not match " + eventCode);
     }
 
     private ResponseStatusException invalid(String message) {

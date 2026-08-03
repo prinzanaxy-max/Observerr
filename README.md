@@ -258,7 +258,7 @@ See gitignored `env.md` for a full Railway Raw Editor template.
 
 ## Database & migrations
 
-Schema is managed by **Flyway** (`V1`–`V17`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
+Schema is managed by **Flyway** (`V1`–`V19`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
 
 | Migration | Purpose |
 |---|---|
@@ -274,6 +274,8 @@ Schema is managed by **Flyway** (`V1`–`V17`). Hibernate defaults to **`ddl-aut
 | V15 | Historical broad enrollment backfill (new exams use explicit enrollment) |
 | V16 | Exam questions, options, answers, results |
 | V17 | Notification inbox/preferences, exam student blocks, active-attempt index |
+| V18 | Web Push subscriptions (`endpoint` / `p256dh` / `auth`) replace FCM tokens |
+| V19 | Backfill missing `first_name` / `last_name` for legacy signups |
 
 If Flyway did not run on Neon (legacy DB), apply manually (optional Node — see [`scripts/README.md`](scripts/README.md)):
 
@@ -372,7 +374,9 @@ New published exams auto-enroll all student accounts when created with `publish:
 | `POST` | `/api/student/exam-sessions/{sessionId}/media-token` | Short-lived LiveKit publish-only token |
 | `POST` | `/api/student/exam-sessions/{sessionId}/complete` | Complete session + final summary |
 
-Integrity event codes and deductions are canonicalized by the server. Client-supplied score fields are ignored during ingest, and completion summaries that do not match server state are rejected. If proctoring is unavailable, the final score is capped at 85 and the session requires lecturer review.
+Integrity event codes and deductions are canonicalized by the server (`IntegrityScoringPolicy`). Client-supplied score fields are ignored during ingest. Per-type deduction caps apply (e.g. **COPY = 7 pts, max 35** → five copies land at **65%** and set `requiresReview`). Risk tiers: **LOW ≥ 71**, **MEDIUM 31–70**, **HIGH ≤ 30**; sessions with `requiresReview` surface as HIGH on live monitoring. If proctoring is unavailable, the final score is capped at **60** and the session requires lecturer review. Start session **resumes** an existing `IN_PROGRESS` attempt (refresh-safe).
+
+Live monitoring `stats.active` counts only `IN_PROGRESS` sessions — enrolled but not-started students appear in `total`, not `active`.
 
 ### Lecturer students — `/api/lecturer/students` (LECTURER)
 
@@ -428,7 +432,33 @@ Always returns **200** with empty arrays / `liveExam: null` when no data (not 40
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/token` | Register Web Push subscription |
+| `POST` | `/token` | Register Web Push subscription `{ endpoint, keys: { p256dh, auth } }` |
+| `DELETE` | `/token` | Unregister the same subscription body |
+
+### Notifications — `/api/notifications` (authenticated)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Inbox page (`page`, `size`, `category`, `unreadOnly`) |
+| `PATCH` | `/{id}/read` | Mark one notification read |
+| `POST` | `/read-all` | Mark all read |
+| `GET` / `PUT` | `/preferences` | Notification preference toggles |
+
+### Integrity deduction reference (server)
+
+| Cap key | Per event | Max | Notes |
+|---|---:|---:|---|
+| COPY | 7 | 35 | 5× → 65%; hitting cap flags review |
+| PASTE | 8 | 32 | Stronger than copy |
+| MULTI_FACE | 15 | 45 | Always review |
+| FACE_ABSENT | 8 | 32 | Short/medium/long share this cap |
+| DEVTOOLS | 10 | 30 | Incl. Alt/Cmd+Tab shortcut attempts |
+| TAB_SWITCH | 5 | 25 | `document.hidden` |
+| FOCUS_LOSS | 4 | 20 | Window blur while tab visible |
+| FULLSCREEN_EXIT | 5 | 15 | |
+| PAGE_REFRESH | 6 | 18 | |
+| IDLE | 3 | 15 | Idle ≥ 60s |
+| GAZE | 3 | 15 | All gaze durations share this cap |
 
 ---
 

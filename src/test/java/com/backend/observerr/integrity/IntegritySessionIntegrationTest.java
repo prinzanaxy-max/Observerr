@@ -142,7 +142,7 @@ class IntegritySessionIntegrationTest {
     void completeSessionAndLecturerReadsTimeline() throws Exception {
         String sessionId = startSession(studentToken);
         UUID eventId = UUID.randomUUID();
-        postEvents(sessionId, studentToken, eventId, "TAB_BLUR_NO_FACE", 50, 50);
+        postEvents(sessionId, studentToken, eventId, "TAB_BLUR_NO_FACE", 15, 85);
 
         String completeBody = """
                 {
@@ -152,9 +152,9 @@ class IntegritySessionIntegrationTest {
                     "startedAt": "2026-07-26T10:00:00Z",
                     "endedAt": "2026-07-26T11:30:00Z",
                     "startingScore": 100,
-                    "finalScore": 50,
+                    "finalScore": 85,
                     "totalEvents": 1,
-                    "totalDeductions": 50,
+                    "totalDeductions": 15,
                     "requiresReview": true,
                     "proctoringAvailable": true
                   },
@@ -167,7 +167,7 @@ class IntegritySessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completeBody))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.finalScore").value(50))
+                .andExpect(jsonPath("$.finalScore").value(85))
                 .andExpect(jsonPath("$.requiresReview").value(true))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
@@ -175,12 +175,12 @@ class IntegritySessionIntegrationTest {
                         .header("Authorization", "Bearer " + lecturerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sessionId").value(sessionId))
-                .andExpect(jsonPath("$.integrityScore").value(50))
+                .andExpect(jsonPath("$.integrityScore").value(85))
                 .andExpect(jsonPath("$.requiresReview").value(true))
                 .andExpect(jsonPath("$.events", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.events[0].eventCode").value("TAB_BLUR_NO_FACE"))
-                .andExpect(jsonPath("$.events[0].pointsDeducted").value(50))
-                .andExpect(jsonPath("$.events[0].scoreAfter").value(50));
+                .andExpect(jsonPath("$.events[0].pointsDeducted").value(15))
+                .andExpect(jsonPath("$.events[0].scoreAfter").value(85));
     }
 
     @Test
@@ -289,14 +289,14 @@ class IntegritySessionIntegrationTest {
     void serverCanonicalizesDeductionsAndRejectsUnknownCodes() throws Exception {
         String sessionId = startSession(studentToken);
         UUID eventId = UUID.randomUUID();
-        postEvents(sessionId, studentToken, eventId, "GAZE_DEVIATION_BRIEF", 5, 95);
+        postEvents(sessionId, studentToken, eventId, "GAZE_DEVIATION_BRIEF", 3, 97);
 
         mockMvc.perform(get("/api/lecturer/students/sessions/{sessionId}", sessionId)
                         .header("Authorization", "Bearer " + lecturerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.integrityScore").value(95))
-                .andExpect(jsonPath("$.events[0].pointsDeducted").value(5))
-                .andExpect(jsonPath("$.events[0].scoreAfter").value(95))
+                .andExpect(jsonPath("$.integrityScore").value(97))
+                .andExpect(jsonPath("$.events[0].pointsDeducted").value(3))
+                .andExpect(jsonPath("$.events[0].scoreAfter").value(97))
                 .andExpect(jsonPath("$.events[0].severity").value("LOW"));
 
         mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/integrity-events", sessionId)
@@ -370,7 +370,7 @@ class IntegritySessionIntegrationTest {
     @Test
     void rejectsTamperedCompletionSummary() throws Exception {
         String sessionId = startSession(studentToken);
-        postEvents(sessionId, studentToken, UUID.randomUUID(), "TAB_BLUR", 8, 92);
+        postEvents(sessionId, studentToken, UUID.randomUUID(), "TAB_BLUR", 5, 95);
 
         String completeBody = """
                 {
