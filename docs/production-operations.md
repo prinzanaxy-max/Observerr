@@ -24,8 +24,8 @@ V15 was a historical broad-enrollment backfill. New exam enrollment is explicit:
 
 - Activate the `prod` or `production` Spring profile.
 - Set a unique `JWT_SECRET` of at least 32 characters and `AUTH_COOKIE_SECURE=true`.
-- Set `REDIS_URL`. Production startup rejects an absent URL, and `/ready` verifies connectivity.
-  Local development and tests safely use the process-local limiter when Redis is absent.
+- Set `REDIS_URL`. Production warns when absent and falls back to process-local limiter/blocklist;
+  `/ready` reports Redis as `OPTIONAL_DISABLED` or `DOWN`. Multi-replica deploys should use Redis.
 - Size `DB_POOL_MAX_SIZE` so `(replicas × max pool) + migration/admin headroom` stays below the
   database connection limit. Configure the remaining `DB_POOL_*` values for the provider.
 - Tune the `RATE_LIMIT_*` variables from observed traffic. Defaults allow one integrity batch

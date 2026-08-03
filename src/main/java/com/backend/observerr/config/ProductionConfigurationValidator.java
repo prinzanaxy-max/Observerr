@@ -2,12 +2,14 @@ package com.backend.observerr.config;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ProductionConfigurationValidator {
@@ -40,8 +42,8 @@ public class ProductionConfigurationValidator {
             throw new IllegalStateException("Production requires AUTH_COOKIE_SECURE=true");
         }
         if (redisUrl == null || redisUrl.isBlank()) {
-            throw new IllegalStateException(
-                    "Production requires REDIS_URL for distributed token invalidation and rate limits");
+            log.warn("Production is running without REDIS_URL; token blocklist and rate limits "
+                    + "are process-local and will not coordinate across replicas");
         }
     }
 }

@@ -249,7 +249,7 @@ See gitignored `env.md` for a full Railway Raw Editor template.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Healthcheck failed | App crash on startup | Check **Deploy Logs** for Flyway / schema validation errors |
+| Healthcheck failed | App crash/hang on startup (Flyway V16–V17, Redis, JWT/prod profile) | Check **Deploy Logs**; confirm `JWT_SECRET`, DB vars, and reachable `REDIS_URL`; health timeout is 300s |
 | `missing table [...]` | Migration not applied | Run manual seed scripts (below), then redeploy |
 | Build OK, deploy “upstream issues” | Railway infra glitch | Redeploy; production may still run on previous replica |
 | `401` on all routes | Missing / wrong `JWT_SECRET` | Set variable and redeploy |
@@ -258,7 +258,7 @@ See gitignored `env.md` for a full Railway Raw Editor template.
 
 ## Database & migrations
 
-Schema is managed by **Flyway** (`V1`–`V15`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
+Schema is managed by **Flyway** (`V1`–`V17`). Hibernate defaults to **`ddl-auto=validate`** — it does not create tables.
 
 | Migration | Purpose |
 |---|---|
@@ -271,7 +271,9 @@ Schema is managed by **Flyway** (`V1`–`V15`). Hibernate defaults to **`ddl-aut
 | V12 | Enroll demo student `STU-12345` in published exams |
 | V13 | Lecturer analytics overview seed data |
 | V14 | Dashboard demo `exam_sessions` for lecturer home / live monitoring |
-| V15 | Enroll all students in all published exams (backfill + ongoing Flyway on deploy) |
+| V15 | Historical broad enrollment backfill (new exams use explicit enrollment) |
+| V16 | Exam questions, options, answers, results |
+| V17 | Notification inbox/preferences, exam student blocks, active-attempt index |
 
 If Flyway did not run on Neon (legacy DB), apply manually (optional Node — see [`scripts/README.md`](scripts/README.md)):
 

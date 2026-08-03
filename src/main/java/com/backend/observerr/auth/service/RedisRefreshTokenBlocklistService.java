@@ -1,27 +1,21 @@
 package com.backend.observerr.auth.service;
 
-import io.lettuce.core.RedisClient;
+import com.backend.observerr.config.RedisClientFactory;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.stereotype.Service;
 
 @Slf4j
-@Service
-@ConditionalOnExpression("!'${spring.data.redis.url:}'.trim().isEmpty()")
 public class RedisRefreshTokenBlocklistService implements RefreshTokenBlocklistService {
 
     private static final String KEY_PREFIX = "blacklist:refresh:";
 
-    private final RedisClient redisClient;
+    private final RedisClientFactory.ConnectionHandle handle;
     private final StatefulRedisConnection<String, String> connection;
 
-    public RedisRefreshTokenBlocklistService(@Value("${spring.data.redis.url}") String redisUrl) {
-        this.redisClient = RedisClient.create(redisUrl);
-        this.connection = redisClient.connect();
+    public RedisRefreshTokenBlocklistService(RedisClientFactory.ConnectionHandle handle) {
+        this.handle = handle;
+        this.connection = handle.connection();
     }
 
     @Override
@@ -42,9 +36,7 @@ public class RedisRefreshTokenBlocklistService implements RefreshTokenBlocklistS
         return "1".equals(connection.sync().get(KEY_PREFIX + jti));
     }
 
-    @PreDestroy
     public void shutdown() {
-        connection.close();
-        redisClient.shutdown();
+        handle.closeQuietly();
     }
 }

@@ -1,19 +1,19 @@
 package com.backend.observerr.auth.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.stereotype.Service;
 
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-@Service
-@ConditionalOnExpression("'${spring.data.redis.url:}'.trim().isEmpty()")
 public class InMemoryRefreshTokenBlocklistService implements RefreshTokenBlocklistService {
 
     private final Map<String, Long> blocklist = new ConcurrentHashMap<>();
+
+    public InMemoryRefreshTokenBlocklistService() {
+        log.warn("Using in-memory refresh token blocklist (set a reachable REDIS_URL for production)");
+    }
 
     @Override
     public void blocklist(String jti, long ttlSeconds) {
@@ -21,7 +21,6 @@ public class InMemoryRefreshTokenBlocklistService implements RefreshTokenBlockli
             return;
         }
         blocklist.put(jti, System.currentTimeMillis() + (ttlSeconds * 1000L));
-        log.warn("Using in-memory refresh token blocklist (set REDIS_URL for production)");
     }
 
     @Override
@@ -50,5 +49,9 @@ public class InMemoryRefreshTokenBlocklistService implements RefreshTokenBlockli
                 iterator.remove();
             }
         }
+    }
+
+    public void shutdown() {
+        blocklist.clear();
     }
 }

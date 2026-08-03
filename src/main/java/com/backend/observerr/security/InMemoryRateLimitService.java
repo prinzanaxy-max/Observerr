@@ -1,8 +1,6 @@
 package com.backend.observerr.security;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.stereotype.Service;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -10,11 +8,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-@Service
-@ConditionalOnExpression("'${spring.data.redis.url:}'.trim().isEmpty()")
 public class InMemoryRateLimitService implements RateLimitService {
 
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
+
+    public InMemoryRateLimitService() {
+        log.warn("Using in-memory rate limiter (set a reachable REDIS_URL for production)");
+    }
 
     @Override
     public boolean tryConsume(String key, int maxAttempts, long windowSeconds) {
@@ -26,7 +26,6 @@ public class InMemoryRateLimitService implements RateLimitService {
             windows.put(key, window);
         }
         int count = window.count.incrementAndGet();
-        log.warn("Using in-memory rate limiter (set REDIS_URL for production)");
         return count <= maxAttempts;
     }
 
@@ -38,6 +37,10 @@ public class InMemoryRateLimitService implements RateLimitService {
                 iterator.remove();
             }
         }
+    }
+
+    public void shutdown() {
+        windows.clear();
     }
 
     private static final class Window {
