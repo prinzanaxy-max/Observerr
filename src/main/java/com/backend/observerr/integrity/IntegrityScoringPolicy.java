@@ -10,19 +10,19 @@ import java.util.Set;
 @Component
 public class IntegrityScoringPolicy {
 
-    public static final int UNAVAILABLE_PROCTORING_SCORE_CAP = 85;
+    public static final int UNAVAILABLE_PROCTORING_SCORE_CAP = 60;
     private static final int MAX_EVENT_DURATION_MS = 6 * 60 * 60 * 1000;
 
     private static final Map<String, Rule> FIXED_RULES = Map.ofEntries(
-            Map.entry("TAB_BLUR", new Rule("Tab/window blur", "LOW", 2, false)),
-            Map.entry("TAB_BLUR_REPEATED", new Rule("Repeated tab/window blur", "MEDIUM", 8, false)),
-            Map.entry("CLIPBOARD_EVENT", new Rule("Copy/paste detected", "MEDIUM", 8, false)),
-            Map.entry("MULTI_FACE_DETECTED", new Rule("Second face detected in frame", "HIGH", 20, false)),
-            Map.entry("DEVTOOLS_SHORTCUT", new Rule("DevTools shortcut attempt", "HIGH", 20, false)),
-            Map.entry("CAMERA_PERMISSION_LOST", new Rule("Webcam permission lost", "HIGH", 25, true)),
-            Map.entry("PROCTORING_UNAVAILABLE", new Rule("Proctoring unavailable", "HIGH", 15, true)),
-            Map.entry("TAB_BLUR_NO_FACE", new Rule("Tab blur with no face visible", "CRITICAL", 30, true)),
-            Map.entry("CAMERA_FEED_FROZEN", new Rule("Camera feed frozen or spoofed", "CRITICAL", 35, true))
+            Map.entry("TAB_BLUR", new Rule("Tab/window blur", "MEDIUM", 8, false)),
+            Map.entry("TAB_BLUR_REPEATED", new Rule("Repeated tab/window blur", "HIGH", 20, false)),
+            Map.entry("CLIPBOARD_EVENT", new Rule("Copy/paste detected", "HIGH", 20, false)),
+            Map.entry("MULTI_FACE_DETECTED", new Rule("Second face detected in frame", "CRITICAL", 40, true)),
+            Map.entry("DEVTOOLS_SHORTCUT", new Rule("DevTools shortcut attempt", "HIGH", 35, false)),
+            Map.entry("CAMERA_PERMISSION_LOST", new Rule("Webcam permission lost", "CRITICAL", 40, true)),
+            Map.entry("PROCTORING_UNAVAILABLE", new Rule("Proctoring unavailable", "HIGH", 25, true)),
+            Map.entry("TAB_BLUR_NO_FACE", new Rule("Tab blur with no face visible", "CRITICAL", 50, true)),
+            Map.entry("CAMERA_FEED_FROZEN", new Rule("Camera feed frozen or spoofed", "CRITICAL", 55, true))
     );
 
     private static final Set<String> INFORMATIONAL_CODES = Set.of(
@@ -58,19 +58,19 @@ public class IntegrityScoringPolicy {
         int duration = requireDuration(durationMs);
         return switch (eventCode) {
             case "GAZE_DEVIATION_BRIEF" -> duration >= 2_000 && duration < 4_000
-                    ? new Rule("Brief gaze deviation", "LOW", 1, false) : rejectDuration(eventCode);
+                    ? new Rule("Brief gaze deviation", "LOW", 5, false) : rejectDuration(eventCode);
             case "GAZE_DEVIATION_MODERATE" -> duration >= 4_000 && duration < 10_000
-                    ? new Rule("Moderate gaze deviation", "MEDIUM", 3, false) : rejectDuration(eventCode);
+                    ? new Rule("Moderate gaze deviation", "MEDIUM", 12, false) : rejectDuration(eventCode);
             case "GAZE_DEVIATION_SUSTAINED" -> duration >= 10_000
-                    ? new Rule("Sustained gaze deviation", "MEDIUM", 5, false) : rejectDuration(eventCode);
+                    ? new Rule("Sustained gaze deviation", "HIGH", 20, false) : rejectDuration(eventCode);
             case "FACE_PARTIAL_BRIEF" -> duration <= 5_000
-                    ? new Rule("Face partially out of frame", "LOW", 2, false) : rejectDuration(eventCode);
+                    ? new Rule("Face partially out of frame", "MEDIUM", 6, false) : rejectDuration(eventCode);
             case "FACE_ABSENT_SHORT", "FACE_ABSENT_BRIEF" -> duration >= 2_000 && duration < 5_000
-                    ? new Rule("Face briefly absent", "LOW", 3, false) : rejectDuration(eventCode);
+                    ? new Rule("Face briefly absent", "MEDIUM", 10, false) : rejectDuration(eventCode);
             case "FACE_ABSENT_MEDIUM" -> duration >= 5_000 && duration < 15_000
-                    ? new Rule("Face absent", "MEDIUM", 6, false) : rejectDuration(eventCode);
+                    ? new Rule("Face absent", "HIGH", 18, false) : rejectDuration(eventCode);
             case "FACE_ABSENT_LONG" -> duration >= 15_000
-                    ? new Rule("Face absent for an extended period", "HIGH", 15, false) : rejectDuration(eventCode);
+                    ? new Rule("Face absent for an extended period", "CRITICAL", 30, true) : rejectDuration(eventCode);
             default -> throw invalid("Unsupported integrity eventCode");
         };
     }

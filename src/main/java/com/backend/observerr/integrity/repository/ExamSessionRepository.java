@@ -35,6 +35,9 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, UUID> 
 
     boolean existsByExamIdAndStudentIdAndStatus(Long examId, Long studentId, ExamSessionStatus status);
 
+    Optional<ExamSession> findByExamIdAndStudentIdAndStatus(
+            Long examId, Long studentId, ExamSessionStatus status);
+
     boolean existsByExamId(Long examId);
 
     List<ExamSession> findByExamId(Long examId);

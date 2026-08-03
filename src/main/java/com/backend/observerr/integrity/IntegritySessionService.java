@@ -52,9 +52,18 @@ public class IntegritySessionService {
         }
         requireStudentCanStart(student, exam);
 
-        if (examSessionRepository.existsByExamIdAndStudentIdAndStatus(
-                examId, student.getId(), ExamSessionStatus.IN_PROGRESS)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "An exam session is already in progress");
+        var existing = examSessionRepository.findByExamIdAndStudentIdAndStatus(
+                examId, student.getId(), ExamSessionStatus.IN_PROGRESS);
+        if (existing.isPresent()) {
+            ExamSession session = existing.get();
+            return ExamSessionResponse.builder()
+                    .sessionId(session.getId().toString())
+                    .examId(session.getExamId())
+                    .studentId(session.getStudentId())
+                    .startedAt(session.getStartedAt().toString())
+                    .startingScore(session.getStartingScore())
+                    .status(ExamSessionStatus.IN_PROGRESS.name())
+                    .build();
         }
 
         UUID sessionId = UUID.randomUUID();
@@ -171,7 +180,7 @@ public class IntegritySessionService {
         boolean proctoringAvailable = session.isProctoringAvailable() && summary.isProctoringAvailable();
         int canonicalScore = scoreFor(session, session.getTotalDeductions(), proctoringAvailable);
         boolean canonicalReview = session.isRequiresReview() || !proctoringAvailable;
-        validateSummary(session, summary, canonicalScore, canonicalReview, proctoringAvailable);
+        validateSummary(session, summary);
 
         session.setEndedAt(parseInstant(summary.getEndedAt()));
         session.setFinalScore((short) canonicalScore);
@@ -295,7 +304,9 @@ public class IntegritySessionService {
         long repeatedPenalties = integrityEventRepository.countBySessionIdAndEventCode(
                 session.getId(),
                 "TAB_BLUR_REPEATED");
-        if (tabBlurs >= 3 && repeatedPenalties == 0) {
+        // Apply a streak penalty every 3 tab blurs (3rd, 6th, 9th, …).
+        long expectedRepeated = tabBlurs / 3;
+        if (tabBlurs >= 3 && repeatedPenalties < expectedRepeated) {
             return rule;
         }
         return new IntegrityScoringPolicy.Rule(
@@ -341,21 +352,13 @@ public class IntegritySessionService {
         }
     }
 
-    private void validateSummary(
-            ExamSession session,
-            ExamSessionSummaryDto summary,
-            int canonicalScore,
-            boolean canonicalReview,
-            boolean proctoringAvailable) {
-        if (summary.getStartingScore() != session.getStartingScore()
-                || summary.getTotalEvents() != session.getTotalEvents()
-                || summary.getTotalDeductions() != session.getTotalDeductions()
-                || summary.getFinalScore() != canonicalScore
-                || summary.isRequiresReview() != canonicalReview
-                || summary.isProctoringAvailable() != proctoringAvailable) {
+    private void validateSummary(ExamSession session, ExamSessionSummaryDto summary) {
+        // Server totals are authoritative. Client summary may lag after refresh or
+        // failed event flushes — reject only hard identity mismatches.
+        if (summary.getStartingScore() != session.getStartingScore()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Completion summary does not match server integrity state");
+                    "Completion summary starting score does not match session");
         }
     }
 

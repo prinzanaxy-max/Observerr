@@ -142,7 +142,7 @@ class IntegritySessionIntegrationTest {
     void completeSessionAndLecturerReadsTimeline() throws Exception {
         String sessionId = startSession(studentToken);
         UUID eventId = UUID.randomUUID();
-        postEvents(sessionId, studentToken, eventId, "TAB_BLUR_NO_FACE", 30, 70);
+        postEvents(sessionId, studentToken, eventId, "TAB_BLUR_NO_FACE", 50, 50);
 
         String completeBody = """
                 {
@@ -152,9 +152,9 @@ class IntegritySessionIntegrationTest {
                     "startedAt": "2026-07-26T10:00:00Z",
                     "endedAt": "2026-07-26T11:30:00Z",
                     "startingScore": 100,
-                    "finalScore": 70,
+                    "finalScore": 50,
                     "totalEvents": 1,
-                    "totalDeductions": 30,
+                    "totalDeductions": 50,
                     "requiresReview": true,
                     "proctoringAvailable": true
                   },
@@ -167,7 +167,7 @@ class IntegritySessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completeBody))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.finalScore").value(70))
+                .andExpect(jsonPath("$.finalScore").value(50))
                 .andExpect(jsonPath("$.requiresReview").value(true))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
@@ -175,12 +175,12 @@ class IntegritySessionIntegrationTest {
                         .header("Authorization", "Bearer " + lecturerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sessionId").value(sessionId))
-                .andExpect(jsonPath("$.integrityScore").value(70))
+                .andExpect(jsonPath("$.integrityScore").value(50))
                 .andExpect(jsonPath("$.requiresReview").value(true))
                 .andExpect(jsonPath("$.events", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.events[0].eventCode").value("TAB_BLUR_NO_FACE"))
-                .andExpect(jsonPath("$.events[0].pointsDeducted").value(30))
-                .andExpect(jsonPath("$.events[0].scoreAfter").value(70));
+                .andExpect(jsonPath("$.events[0].pointsDeducted").value(50))
+                .andExpect(jsonPath("$.events[0].scoreAfter").value(50));
     }
 
     @Test
@@ -289,14 +289,14 @@ class IntegritySessionIntegrationTest {
     void serverCanonicalizesDeductionsAndRejectsUnknownCodes() throws Exception {
         String sessionId = startSession(studentToken);
         UUID eventId = UUID.randomUUID();
-        postEvents(sessionId, studentToken, eventId, "GAZE_DEVIATION_BRIEF", 99, 1);
+        postEvents(sessionId, studentToken, eventId, "GAZE_DEVIATION_BRIEF", 5, 95);
 
         mockMvc.perform(get("/api/lecturer/students/sessions/{sessionId}", sessionId)
                         .header("Authorization", "Bearer " + lecturerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.integrityScore").value(99))
-                .andExpect(jsonPath("$.events[0].pointsDeducted").value(1))
-                .andExpect(jsonPath("$.events[0].scoreAfter").value(99))
+                .andExpect(jsonPath("$.integrityScore").value(95))
+                .andExpect(jsonPath("$.events[0].pointsDeducted").value(5))
+                .andExpect(jsonPath("$.events[0].scoreAfter").value(95))
                 .andExpect(jsonPath("$.events[0].severity").value("LOW"));
 
         mockMvc.perform(post("/api/student/exam-sessions/{sessionId}/integrity-events", sessionId)
@@ -335,10 +335,10 @@ class IntegritySessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "events", java.util.List.of(buildEvent(
-                                        UUID.randomUUID(), "PROCTORING_UNAVAILABLE", 15, 85))
+                                        UUID.randomUUID(), "PROCTORING_UNAVAILABLE", 40, 60))
                         ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.currentScore").value(85))
+                .andExpect(jsonPath("$.currentScore").value(60))
                 .andExpect(jsonPath("$.requiresReview").value(true));
 
         String completeBody = """
@@ -349,9 +349,9 @@ class IntegritySessionIntegrationTest {
                     "startedAt": "2026-07-26T10:00:00Z",
                     "endedAt": "2026-07-26T11:00:00Z",
                     "startingScore": 100,
-                    "finalScore": 85,
+                    "finalScore": 60,
                     "totalEvents": 1,
-                    "totalDeductions": 15,
+                    "totalDeductions": 40,
                     "requiresReview": true,
                     "proctoringAvailable": false
                   }
@@ -363,14 +363,14 @@ class IntegritySessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completeBody))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.finalScore").value(85))
+                .andExpect(jsonPath("$.finalScore").value(60))
                 .andExpect(jsonPath("$.requiresReview").value(true));
     }
 
     @Test
     void rejectsTamperedCompletionSummary() throws Exception {
         String sessionId = startSession(studentToken);
-        postEvents(sessionId, studentToken, UUID.randomUUID(), "TAB_BLUR", 0, 100);
+        postEvents(sessionId, studentToken, UUID.randomUUID(), "TAB_BLUR", 8, 92);
 
         String completeBody = """
                 {
@@ -379,9 +379,9 @@ class IntegritySessionIntegrationTest {
                     "examId": %d,
                     "startedAt": "2026-07-26T10:00:00Z",
                     "endedAt": "2026-07-26T11:00:00Z",
-                    "startingScore": 100,
+                    "startingScore": 50,
                     "finalScore": 100,
-                    "totalEvents": 1,
+                    "totalEvents": 0,
                     "totalDeductions": 0,
                     "requiresReview": false,
                     "proctoringAvailable": true
@@ -394,6 +394,13 @@ class IntegritySessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completeBody))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resumesInProgressSessionOnRefresh() throws Exception {
+        String first = startSession(studentToken);
+        String second = startSession(studentToken);
+        org.junit.jupiter.api.Assertions.assertEquals(first, second);
     }
 
     @Test
