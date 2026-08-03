@@ -21,6 +21,7 @@ Dependencies install into `scripts/node_modules/` (gitignored).
 Set `DATABASE_URL` or `SPRING_DATASOURCE_*` (see `db-connection.mjs`), then from repo root:
 
 ```bash
+node scripts/run-exam-core-migration.mjs       # V16 + V17 (exam Q/A/results + notifications/blocks)
 node scripts/run-lecturer-analytics-seed.mjs   # V13
 node scripts/run-lecturer-dashboard-seed.mjs   # V14
 node scripts/verify-analytics-coverage.mjs     # optional check after V13

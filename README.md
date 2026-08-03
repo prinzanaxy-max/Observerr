@@ -249,7 +249,7 @@ See gitignored `env.md` for a full Railway Raw Editor template.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Healthcheck failed | App crash/hang on startup (Flyway V16–V17, Redis, JWT/prod profile) | Check **Deploy Logs**; confirm `JWT_SECRET`, DB vars, and reachable `REDIS_URL`; health timeout is 300s |
+| Healthcheck failed | App crash on startup — often Flyway not running (Boot 4 needs `spring-boot-starter-flyway`) or schema behind (missing `exam_answers`) | Check **Deploy Logs** for `Schema validation: missing table`; redeploy with Flyway starter; or run `node scripts/run-exam-core-migration.mjs` against Neon |
 | `missing table [...]` | Migration not applied | Run manual seed scripts (below), then redeploy |
 | Build OK, deploy “upstream issues” | Railway infra glitch | Redeploy; production may still run on previous replica |
 | `401` on all routes | Missing / wrong `JWT_SECRET` | Set variable and redeploy |
@@ -465,7 +465,7 @@ src/main/java/com/backend/observerr/
 ├── config/            Security, CORS, cache, Firebase, Cloudinary
 └── exception/         Global error handling
 
-src/main/resources/db/migration/   Flyway SQL (V1–V15)
+src/main/resources/db/migration/   Flyway SQL (V1–V17)
 scripts/                           Optional Neon seed runners (.mjs); Node not used at runtime
 ```
 
