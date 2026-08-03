@@ -7,29 +7,24 @@
 1. **Collection:** `Observerr_Auth.postman_collection.json`
 2. **Environment:** `Observerr.postman_environment.json`
 3. Select the **Observerr** environment (top-right dropdown)
+4. **Response catalog:** [`RESPONSE_EXAMPLES.md`](./RESPONSE_EXAMPLES.md) — success/error bodies for every major case
 
-The collection includes **~40 requests** covering health, auth, account, student, integrity ingest, lecturer exams/dashboard/students/analytics/proctoring, devices, and sample error cases.
+The collection covers health, auth (incl. named signup), account, student, integrity ingest (copy/tab caps), lecturer exams/dashboard/students/analytics/proctoring, devices (Web Push), notifications, and sample error cases.
 
 ## Quick test flow
 
 ### Student flow
 1. **Auth → Login (Demo Student)** — saves `accessToken` / `refreshToken`
-2. **Student → List Exams** — all **published** exams; test script sets `examId` (prefers a **LIVE** exam)
-3. **Student → Get Exam Detail** — uses `{{examId}}`
-4. **Integrity (Student) → Start Session** — requires a **published** exam; saves UUID `{{sessionId}}`
-5. **Integrity → Batch Integrity Events**
-6. **Integrity → Complete Session**
+2. **Student → List Exams** — sets `examId` (prefers **LIVE**)
+3. **Integrity → Start Session** — creates or **resumes** `IN_PROGRESS` session → `sessionId`
+4. **Integrity → Batch Integrity Events** — try `COPY_EVENT` (7 pts, cap 35)
+5. **Integrity → Complete Session**
 
 ### Lecturer flow
-1. **Auth → Login (Demo Lecturer)** — saves tokens
-2. **Lecturer — Dashboard → Dashboard Home**
-3. **Lecturer — Dashboard → Live Sessions** — set `examId` to a live exam (or use value from **List Exams**)
-4. **Lecturer — Exams → List Exams**
-5. **Lecturer — Students → List Students**
-6. **Lecturer — Analytics → Overview (7D)**
-7. **Lecturer — Students → Session Detail** — UUID (live ingest) or numeric legacy demo ID
-
-**Create & go live:** **Lecturer — Exams → Create Exam** with `"publish": true` enrolls all student accounts and saves `examId`. Use **Start Exam (Go Live)** before students get `canTake: true`.
+1. **Auth → Login (Demo Lecturer)**
+2. **Dashboard → Live Sessions** — `stats.active` is **0** until a student has an `IN_PROGRESS` session
+3. **Exams → Create Exam** (`publish: true`) → **Start Exam (Go Live)**
+4. **Devices / Notifications** — Web Push subscription + inbox preferences
 
 ## Variables
 
@@ -38,7 +33,7 @@ The collection includes **~40 requests** covering health, auth, account, student
 | `baseUrl` | Environment | All requests |
 | `accessToken` | Login / Register | Collection bearer auth |
 | `refreshToken` | Login / Register | `POST /api/auth/refresh` |
-| `examId` | List Exams, Create Exam, manual | Student/lecturer exam paths |
+| `examId` | List Exams, Create Exam | Student/lecturer exam paths |
 | `sessionId` | Start Session | Integrity batch + complete |
 
 ## Switch environments
@@ -67,21 +62,22 @@ Passwords: ask the backend team.
 }
 ```
 
-Validation errors (`400`) include an `errors` object. Common codes: `401` (auth), `403` (wrong role), `404` (missing resource / unpublished exam on session start), `409` (session already in progress).
+Validation errors (`400`) include an `errors` object. Common codes: `401` (auth), `403` (wrong role), `404` (missing resource), `409` (exam not live / session completed).
 
-## API map (matches codebase)
+## API map
 
 | Folder | Base path |
 |---|---|
-| Health | `GET /health` |
-| Auth | `/api/auth/*` |
+| Health | `GET /health`, `GET /ready` |
+| Auth | `/api/auth/*` (register requires `firstName` / `lastName`) |
 | Account | `/api/account/*` |
 | Student | `/api/student/results`, `/stats`, `/exams` |
 | Integrity | `/api/student/exams/{examId}/sessions`, `/api/student/exam-sessions/{sessionId}/*` |
-| Lecturer — Exams | `/api/lecturer/exams` (+ `/{examId}/start`, `/{examId}/live-sessions`) |
-| Lecturer — Dashboard | `GET /api/lecturer/dashboard`, needs-review, live-sessions |
+| Lecturer — Exams | `/api/lecturer/exams` (+ start, live-sessions) |
+| Lecturer — Dashboard | `GET /api/lecturer/dashboard` |
 | Lecturer — Proctoring | `/api/lecturer/proctoring/exams` |
-| Lecturer — Analytics | `GET /api/lecturer/analytics/overview?period=7D\|30D\|3M` |
-| Devices | `POST /api/devices/token` |
+| Lecturer — Analytics | `GET /api/lecturer/analytics/overview` |
+| Devices | `POST` / `DELETE` `/api/devices/token` (Web Push subscription) |
+| Notifications | `/api/notifications`, `/preferences` |
 
-Full tables: root [README.md](../README.md#api-reference).
+Full tables + integrity deduction caps: root [README.md](../README.md#api-reference).

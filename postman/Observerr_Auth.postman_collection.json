@@ -98,9 +98,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"STU-001\",\n  \"email\": \"student@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}"
+              "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"Student\",\n  \"institutionalId\": \"STU-001\",\n  \"email\": \"student@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/register"
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Public registration is STUDENT-only. Requires firstName + lastName. 201 AuthResponse; 400 validation / lecturer role; 409 duplicate id/email."
           },
           "event": [{
             "listen": "test",
@@ -124,9 +125,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"lecturer@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}"
+              "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"Lecturer\",\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"lecturer@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/register"
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Expected **400** — public registration is students only. Lecturer accounts are provisioned by the institution."
           },
           "event": [{
             "listen": "test",
@@ -298,13 +300,13 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"startingScore\": 100\n}" },
             "url": "{{baseUrl}}/api/student/exams/{{examId}}/sessions",
-            "description": "Exam must be **published**. Returns 201 with UUID sessionId; 404 if exam missing/unpublished; 409 if session already IN_PROGRESS."
+            "description": "Exam must be **LIVE** with webcam monitoring. Returns **201** for a new session, or **201/200** reusing an existing IN_PROGRESS session (refresh-safe). 403 not enrolled/blocked; 404 missing exam; 409 exam not live."
           },
           "event": [{
             "listen": "test",
             "script": {
               "exec": [
-                "if (pm.response.code === 201) {",
+                "if (pm.response.code === 201 || pm.response.code === 200) {",
                 "  pm.collectionVariables.set('sessionId', pm.response.json().sessionId);",
                 "  pm.environment.set('sessionId', pm.response.json().sessionId);",
                 "}"
@@ -320,9 +322,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"events\": [\n    {\n      \"clientEventId\": \"11111111-1111-1111-1111-111111111111\",\n      \"eventCode\": \"TAB_BLUR\",\n      \"title\": \"Tab switched away\",\n      \"description\": \"Student left exam tab\",\n      \"severity\": \"MEDIUM\",\n      \"pointsDeducted\": 5,\n      \"scoreAfter\": 95,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:05:30Z\",\n      \"durationMs\": 3000,\n      \"metadata\": { \"tabTitle\": \"Google\" }\n    }\n  ]\n}"
+              "raw": "{\n  \"events\": [\n    {\n      \"clientEventId\": \"11111111-1111-1111-1111-111111111111\",\n      \"eventCode\": \"COPY_EVENT\",\n      \"title\": \"Copy detected\",\n      \"description\": \"Student copied exam content\",\n      \"severity\": \"MEDIUM\",\n      \"pointsDeducted\": 7,\n      \"scoreAfter\": 93,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:05:30Z\",\n      \"metadata\": { \"action\": \"copy\" }\n    },\n    {\n      \"clientEventId\": \"22222222-2222-2222-2222-222222222222\",\n      \"eventCode\": \"TAB_SWITCH\",\n      \"title\": \"Tab switch\",\n      \"description\": \"document.hidden became true\",\n      \"severity\": \"MEDIUM\",\n      \"pointsDeducted\": 5,\n      \"scoreAfter\": 88,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:06:00Z\",\n      \"metadata\": { \"source\": \"visibility\" }\n    },\n    {\n      \"clientEventId\": \"33333333-3333-3333-3333-333333333333\",\n      \"eventCode\": \"CLIPBOARD_EVENT\",\n      \"title\": \"Paste detected\",\n      \"description\": \"Legacy clipboard code; server normalizes via metadata.action\",\n      \"severity\": \"HIGH\",\n      \"pointsDeducted\": 8,\n      \"scoreAfter\": 80,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:06:30Z\",\n      \"metadata\": { \"action\": \"paste\" }\n    }\n  ]\n}"
             },
-            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/integrity-events"
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/integrity-events",
+            "description": "Server canonicalizes points + caps (COPY max 35). Client pointsDeducted/scoreAfter are ignored. Idempotent on clientEventId. 200 `{ accepted, skipped, currentScore, requiresReview }`; 409 if session completed; 403 if blocked."
           }
         },
         {
@@ -432,7 +435,11 @@
         },
         {
           "name": "Live Sessions",
-          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/live-sessions" }
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/live-sessions",
+            "description": "`stats.active` = count of IN_PROGRESS sessions only. Enrolled-but-not-started students are in `stats.total` / `students[]` with `liveStatus: NOT_STARTED`, and do **not** inflate active."
+          }
         }
       ]
     },
@@ -492,7 +499,60 @@
               "mode": "raw",
               "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example\",\n  \"keys\": {\n    \"p256dh\": \"p256dh-public-key\",\n    \"auth\": \"auth-secret\"\n  }\n}"
             },
-            "url": "{{baseUrl}}/api/devices/token"
+            "url": "{{baseUrl}}/api/devices/token",
+            "description": "200 `{ success, message }`. Re-registering the same endpoint transfers ownership to the current user."
+          }
+        },
+        {
+          "name": "Unregister Web Push Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example\",\n  \"keys\": {\n    \"p256dh\": \"p256dh-public-key\",\n    \"auth\": \"auth-secret\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/devices/token",
+            "description": "204 No Content when the subscription belongs to the caller."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "category", "value": "EXAM", "disabled": true, "description": "EXAM | INTEGRITY | RESULT | SYSTEM" },
+                { "key": "unreadOnly", "value": "false", "disabled": true }
+              ]
+            },
+            "description": "200 page `{ content[], page, size, totalElements, totalPages, unreadCount }`."
+          }
+        },
+        {
+          "name": "Get Notification Preferences",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/notifications/preferences" }
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examEvents\": true,\n  \"integrityAlerts\": true,\n  \"resultUpdates\": true,\n  \"systemUpdates\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/notifications/preferences"
           }
         }
       ]
