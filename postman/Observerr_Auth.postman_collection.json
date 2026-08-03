@@ -2,7 +2,7 @@
   "info": {
     "name": "Observerr API",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "description": "Complete Observerr backend API (~40 requests) — auth, account, student results/stats/exams, integrity ingest, lecturer exams, dashboard, students, proctoring, analytics, devices.\n\n**Setup:** Import `Observerr.postman_environment.json`, select the Observerr environment, then run **Login (Demo Lecturer)** or **Login (Demo Student)**.\n\n**Student exams:** `GET /api/student/exams` returns all **published** exams. **Start Session** requires a published exam (`404` otherwise).\n\n**Create exam:** `POST /api/lecturer/exams` with `\"publish\": true` enrolls all student users.\n\nProduction: `https://observerr-production.up.railway.app`\nFrontend: `https://observerr-ui.pages.dev`",
+    "description": "Observerr backend API — auth, account, student results/exams/attempts, integrity + LiveKit media tokens, lecturer exam lifecycle (questions, results, blocks), dashboard, proctoring, analytics, Web Push devices, notifications.\n\n**Setup:** Import `Observerr.postman_environment.json`, select environment, run **Login (Demo Student)** or **Login (Demo Lecturer)**.\n\n**Docs:** `postman/README.md`, `postman/RESPONSE_EXAMPLES.md`.\n\nProduction: `https://observerr-production.up.railway.app` · Frontend: `https://observerr-ui.pages.dev`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,7 +10,11 @@
     { "key": "accessToken", "value": "" },
     { "key": "refreshToken", "value": "" },
     { "key": "examId", "value": "1" },
-    { "key": "sessionId", "value": "" }
+    { "key": "sessionId", "value": "" },
+    { "key": "resultId", "value": "1" },
+    { "key": "questionId", "value": "1" },
+    { "key": "studentIdentifier", "value": "STU-12345" },
+    { "key": "notificationId", "value": "1" }
   ],
   "auth": {
     "type": "bearer",
@@ -27,6 +31,16 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/ready",
+            "description": "DB + optional Redis/Web Push configuration probes (Railway/k8s style)."
           }
         }
       ]
@@ -249,12 +263,36 @@
                 { "key": "size", "value": "10" },
                 { "key": "sort", "value": "MOST_RECENT", "description": "MOST_RECENT | OLDEST | HIGHEST_INTEGRITY | LOWEST_INTEGRITY" }
               ]
+            },
+            "description": "Paginated released exam results (`content[]`, `totalElements`). Use **Dashboard Stats** for summary counts."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const c = pm.response.json().content;",
+                "  if (c && c.length) {",
+                "    pm.collectionVariables.set('resultId', String(c[0].id));",
+                "    pm.environment.set('resultId', String(c[0].id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
             }
-          }
+          }]
         },
         {
-          "name": "Results Summary",
-          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/results/summary" }
+          "name": "Get Result Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/results/{{resultId}}" }
+        },
+        {
+          "name": "Get Result Analysis",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/results/{{resultId}}/analysis",
+            "description": "Same payload as result detail (integrity timeline + answers when released)."
+          }
         },
         {
           "name": "Dashboard Stats",
@@ -287,6 +325,14 @@
         {
           "name": "Get Exam Detail",
           "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams/{{examId}}" }
+        },
+        {
+          "name": "Preview Exam Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/exams/{{examId}}/questions",
+            "description": "Question bank preview (no correct answers). Requires published exam + enrollment."
+          }
         }
       ]
     },
@@ -338,6 +384,71 @@
               "raw": "{\n  \"summary\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"examId\": {{examId}},\n    \"startedAt\": \"2026-07-28T14:00:00Z\",\n    \"endedAt\": \"2026-07-28T16:00:00Z\",\n    \"startingScore\": 100,\n    \"finalScore\": 87,\n    \"totalEvents\": 1,\n    \"totalDeductions\": 13,\n    \"requiresReview\": false,\n    \"proctoringAvailable\": true\n  },\n  \"events\": []\n}"
             },
             "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/complete"
+          }
+        },
+        {
+          "name": "Student Media Token (LiveKit)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/media-token",
+            "description": "Publish-only LiveKit token for in-progress session. Requires LIVEKIT_* env on server."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exam Attempt (Student)",
+      "item": [
+        {
+          "name": "Session Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/questions",
+            "description": "Questions for active session (options only, no correct answer)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const q = pm.response.json();",
+                "  if (Array.isArray(q) && q.length) {",
+                "    pm.collectionVariables.set('questionId', String(q[0].id));",
+                "    pm.environment.set('questionId', String(q[0].id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Restore Saved Answers",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/answers" }
+        },
+        {
+          "name": "Autosave Answer",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"selectedOption\": \"A\"\n}" },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/answers/{{questionId}}",
+            "description": "selectedOption: A | B | C | D. Rate-limited per student."
+          }
+        },
+        {
+          "name": "Submit Exam",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": {{questionId}}, \"selectedOption\": \"A\" }\n  ],\n  \"completion\": {\n    \"summary\": {\n      \"sessionId\": \"{{sessionId}}\",\n      \"examId\": {{examId}},\n      \"startedAt\": \"2026-07-28T14:00:00Z\",\n      \"endedAt\": \"2026-07-28T16:00:00Z\",\n      \"startingScore\": 100,\n      \"finalScore\": 87,\n      \"totalEvents\": 0,\n      \"totalDeductions\": 13,\n      \"requiresReview\": false,\n      \"proctoringAvailable\": true\n    },\n    \"events\": []\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/submit",
+            "description": "Grades answers, completes integrity session, creates result (release separately by lecturer)."
           }
         }
       ]
@@ -393,6 +504,79 @@
         {
           "name": "Start Exam (Go Live)",
           "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/start" }
+        },
+        {
+          "name": "End Exam",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/end" }
+        },
+        {
+          "name": "Publish Exam",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/publish" }
+        },
+        {
+          "name": "Replace Enrollments",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentInstitutionalIds\": [\"STU-12345\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/enrollments"
+          }
+        },
+        {
+          "name": "Get Questions (Lecturer)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/questions" }
+        },
+        {
+          "name": "Replace Questions",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"text\": \"What is 2+2?\",\n    \"options\": { \"A\": \"3\", \"B\": \"4\", \"C\": \"5\", \"D\": \"6\" },\n    \"correctAnswer\": \"B\",\n    \"points\": 10\n  }\n]"
+            },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/questions",
+            "description": "Replaces entire question set. `text` accepts alias `prompt`."
+          }
+        },
+        {
+          "name": "List Exam Results",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/results" }
+        },
+        {
+          "name": "Release Results",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resultIds\": []\n}" },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/results/release",
+            "description": "Empty resultIds releases all pending results for the exam."
+          }
+        },
+        {
+          "name": "Unrelease Results",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resultIds\": []\n}" },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/results/unrelease"
+          }
+        },
+        {
+          "name": "Block Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Integrity violation\"\n}" },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/students/{{studentIdentifier}}/block"
+          }
+        },
+        {
+          "name": "Unblock Student",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/students/{{studentIdentifier}}/unblock" }
         }
       ]
     },
@@ -453,6 +637,16 @@
         {
           "name": "Exam Feeds",
           "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/proctoring/exams/{{examId}}/feeds" }
+        },
+        {
+          "name": "Lecturer Media Token (LiveKit)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/lecturer/proctoring/exams/{{examId}}/media-token",
+            "description": "Subscribe-only LiveKit token for exam owner."
+          }
         }
       ]
     },
@@ -483,6 +677,25 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=3M"
+          }
+        },
+        {
+          "name": "Integrity Events Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/analytics/integrity-events?period=7D&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "analytics", "integrity-events"],
+              "query": [
+                { "key": "period", "value": "7D", "description": "7D | 30D | 3M" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "eventType", "value": "", "disabled": true },
+                { "key": "severity", "value": "", "disabled": true }
+              ]
+            }
           }
         }
       ]
@@ -537,7 +750,34 @@
               ]
             },
             "description": "200 page `{ content[], page, size, totalElements, totalPages, unreadCount }`."
-          }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const c = pm.response.json().content;",
+                "  if (c && c.length) {",
+                "    pm.collectionVariables.set('notificationId', String(c[0].id));",
+                "    pm.environment.set('notificationId', String(c[0].id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/notifications/{{notificationId}}/read" }
+        },
+        {
+          "name": "Mark All Read",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/notifications/read-all" }
+        },
+        {
+          "name": "Delete Notification",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/notifications/{{notificationId}}" }
         },
         {
           "name": "Get Notification Preferences",

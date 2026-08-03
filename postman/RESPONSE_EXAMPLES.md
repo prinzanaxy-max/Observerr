@@ -142,6 +142,88 @@ Same shape as register 201.
 
 ---
 
+## Student results
+
+### `GET /api/student/results` — 200
+```json
+{
+  "content": [
+    {
+      "id": 7,
+      "examId": 42,
+      "examTitle": "Midterm",
+      "academicScore": 80,
+      "maxScore": 100,
+      "integrityScore": 88,
+      "status": "RELEASED",
+      "submittedAt": "2026-08-03T02:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+### `GET /api/student/stats` — 200
+```json
+{
+  "examsCompleted": 3,
+  "avgIntegrity": 92.5,
+  "verifiedSessions": 2,
+  "underReview": 0
+}
+```
+
+---
+
+## Exam attempt
+
+### `GET /api/student/exam-sessions/{sessionId}/questions` — 200
+```json
+[
+  {
+    "id": 1,
+    "text": "What is 2+2?",
+    "order": 1,
+    "points": 10,
+    "options": [
+      { "choice": "A", "text": "3" },
+      { "choice": "B", "text": "4" }
+    ]
+  }
+]
+```
+
+### `PUT …/answers/{questionId}` — 200
+```json
+{ "questionId": 1, "selectedOption": "B", "savedAt": "2026-08-03T02:05:00Z" }
+```
+
+### `POST …/submit` — 200
+Returns `ExamResultDto` (same fields as lecturer results list item).
+
+---
+
+## LiveKit media tokens
+
+### `POST /api/student/exam-sessions/{sessionId}/media-token` — 200
+```json
+{
+  "url": "wss://observerr-….livekit.cloud",
+  "token": "eyJ…",
+  "roomName": "exam-42",
+  "participantIdentity": "student-101-session-…",
+  "expiresAt": "2026-08-03T02:05:00Z"
+}
+```
+
+### `POST /api/lecturer/proctoring/exams/{examId}/media-token` — 200
+Same shape; subscribe-only grant for lecturer.
+
+---
+
 ## Live monitoring
 
 ### `GET /api/lecturer/exams/{examId}/live-sessions` — enrolled 1, none started
@@ -246,9 +328,16 @@ Empty body.
 }
 ```
 
----
+### `PATCH /api/notifications/{id}/read` — 204
+Empty body.
 
-## Health
+### `PATCH /api/notifications/read-all` — 204
+Empty body.
+
+### `DELETE /api/notifications/{id}` — 204
+Empty body.
+
+---
 
 ### `GET /health` — 200
 ```json

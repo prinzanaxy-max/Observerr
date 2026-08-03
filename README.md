@@ -546,7 +546,7 @@ scripts/                           Optional Neon seed runners (.mjs); Node not u
 
 | File | Purpose |
 |---|---|
-| `postman/Observerr_Auth.postman_collection.json` | Full API collection (~40 requests) |
+| `postman/Observerr_Auth.postman_collection.json` | Full API collection (~67 requests) |
 | `postman/Observerr.postman_environment.json` | `baseUrl`, token, `examId`, `sessionId` vars |
 | `postman/README.md` | Import steps and test flows |
 
