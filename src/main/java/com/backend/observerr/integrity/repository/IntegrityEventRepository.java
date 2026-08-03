@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.UUID;
+// List already imported for sumPoints query
 import java.time.Instant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,15 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
     List<UUID> findExistingClientEventIds(@Param("ids") List<UUID> ids);
 
     long countBySessionIdAndEventCode(UUID sessionId, String eventCode);
+
+    @Query("""
+            SELECT COALESCE(SUM(e.pointsDeducted), 0)
+            FROM IntegrityEvent e
+            WHERE e.sessionId = :sessionId AND e.eventCode IN :codes
+            """)
+    int sumPointsBySessionIdAndEventCodeIn(
+            @Param("sessionId") UUID sessionId,
+            @Param("codes") List<String> codes);
 
     List<IntegrityEvent> findBySessionIdOrderByOccurredAtAscIdAsc(UUID sessionId);
 

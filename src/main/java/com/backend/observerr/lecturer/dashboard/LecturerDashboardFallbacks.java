@@ -61,7 +61,7 @@ public class LecturerDashboardFallbacks {
                 .courseCode(examDto.getCourseCode())
                 .status("LIVE")
                 .remainingSeconds(0)
-                .activeStudents(examDto.getEnrolledCount())
+                .activeStudents(0)
                 .highRiskCount(Math.max(0, examDto.getActiveFlagsCount()))
                 .avgIntegrityScore(88.0)
                 .liveMonitoringPath("/lecturer/exams/" + examDto.getId() + "/live")

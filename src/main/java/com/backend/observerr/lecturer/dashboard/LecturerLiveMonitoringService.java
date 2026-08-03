@@ -84,7 +84,7 @@ public class LecturerLiveMonitoringService {
         int avgScore = students.isEmpty() ? 94 : scoreSum / students.size();
 
         LiveSessionStatsDto stats = LiveSessionStatsDto.builder()
-                .active(active == 0 && total > 0 ? Math.min(total, exam.getEnrolledCount()) : active)
+                .active(active)
                 .total(total)
                 .highRisk(highRisk)
                 .warnings(warnings)
@@ -100,7 +100,10 @@ public class LecturerLiveMonitoringService {
 
     private MonitoredStudentDto toMonitoredStudent(User student, ExamSession session) {
         int score = session == null ? 100 : sessionInsights.resolveIntegrityScore(session);
-        String riskLevel = RiskLevel.fromIntegrityScore(score).name();
+        boolean forcedHighRisk = session != null && session.isRequiresReview();
+        String riskLevel = forcedHighRisk
+                ? RiskLevel.HIGH.name()
+                : RiskLevel.fromIntegrityScore(score).name();
         IntegrityEvent latestEvent = session == null
                 ? null
                 : sessionInsights.latestEvent(session.getId());

@@ -24,9 +24,11 @@ import com.backend.observerr.config.CacheConfig;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -232,12 +234,14 @@ public class IntegritySessionService {
         List<UUID> requestedIds = events.stream().map(IntegrityEventIngestDto::getClientEventId).toList();
         Set<UUID> seenIds = new HashSet<>(integrityEventRepository.findExistingClientEventIds(requestedIds));
         List<IntegrityEvent> pendingEvents = new ArrayList<>();
+        Map<String, Integer> batchCapUsage = new HashMap<>();
         for (IntegrityEventIngestDto eventDto : events) {
             if (!seenIds.add(eventDto.getClientEventId())) {
                 continue;
             }
-            IntegrityScoringPolicy.Rule rule = resolveRule(session, eventDto, deductions);
+            IntegrityScoringPolicy.Rule rule = resolveRule(session, eventDto, deductions, batchCapUsage);
             deductions += rule.points();
+            batchCapUsage.merge(rule.capKey(), rule.points(), Integer::sum);
             boolean eventKeepsProctoring = eventKeepsProctoring(eventDto.getEventCode());
             pendingEvents.add(toEntity(
                     session.getId(),
@@ -271,7 +275,7 @@ public class IntegritySessionService {
         return IntegrityEvent.builder()
                 .sessionId(sessionId)
                 .clientEventId(dto.getClientEventId())
-                .eventCode(dto.getEventCode())
+                .eventCode(IntegrityScoringPolicy.normalizeEventCode(dto.getEventCode(), dto.getMetadata()))
                 .title(rule.title())
                 .description(dto.getDescription())
                 .severity(rule.severity())
@@ -287,33 +291,38 @@ public class IntegritySessionService {
     private IntegrityScoringPolicy.Rule resolveRule(
             ExamSession session,
             IntegrityEventIngestDto dto,
-            int deductionsBeforeEvent) {
-        IntegrityScoringPolicy.Rule rule = scoringPolicy.resolve(dto.getEventCode(), dto.getDurationMs());
-        if ("PROCTORING_UNAVAILABLE".equals(dto.getEventCode())) {
+            int deductionsBeforeEvent,
+            Map<String, Integer> batchCapUsage) {
+        IntegrityScoringPolicy.Rule rule = scoringPolicy.resolve(
+                dto.getEventCode(), dto.getDurationMs(), dto.getMetadata());
+        if ("PROCTORING_UNAVAILABLE".equals(rule.capKey())
+                || "PROCTORING_UNAVAILABLE".equals(dto.getEventCode())) {
             int currentScore = Math.max(0, session.getStartingScore() - deductionsBeforeEvent);
+            int points = Math.max(0, currentScore - IntegrityScoringPolicy.UNAVAILABLE_PROCTORING_SCORE_CAP);
             return new IntegrityScoringPolicy.Rule(
                     rule.title(),
                     rule.severity(),
-                    Math.max(0, currentScore - IntegrityScoringPolicy.UNAVAILABLE_PROCTORING_SCORE_CAP),
-                    true);
+                    points,
+                    true,
+                    "PROCTORING_UNAVAILABLE");
         }
-        if (!"TAB_BLUR_REPEATED".equals(dto.getEventCode())) {
-            return rule;
-        }
-        long tabBlurs = integrityEventRepository.countBySessionIdAndEventCode(session.getId(), "TAB_BLUR");
-        long repeatedPenalties = integrityEventRepository.countBySessionIdAndEventCode(
-                session.getId(),
-                "TAB_BLUR_REPEATED");
-        // Apply a streak penalty every 3 tab blurs (3rd, 6th, 9th, …).
-        long expectedRepeated = tabBlurs / 3;
-        if (tabBlurs >= 3 && repeatedPenalties < expectedRepeated) {
-            return rule;
-        }
+
+        int already = integrityEventRepository.sumPointsBySessionIdAndEventCodeIn(
+                session.getId(), IntegrityScoringPolicy.codesForCap(rule.capKey()));
+        already += batchCapUsage.getOrDefault(rule.capKey(), 0);
+        int cappedPoints = IntegrityScoringPolicy.applyCap(rule.capKey(), rule.points(), already);
+        boolean hitCap = already + cappedPoints
+                >= IntegrityScoringPolicy.MAX_DEDUCTION_BY_CAP.getOrDefault(rule.capKey(), Integer.MAX_VALUE)
+                && IntegrityScoringPolicy.MAX_DEDUCTION_BY_CAP.containsKey(rule.capKey());
+        boolean requiresReview = rule.requiresReview()
+                || (hitCap && IntegrityScoringPolicy.flagsReviewWhenCapped(rule.capKey()));
+
         return new IntegrityScoringPolicy.Rule(
-                "Repeated tab/window blur (already accounted for)",
-                "INFO",
-                0,
-                false);
+                rule.title(),
+                hitCap && IntegrityScoringPolicy.flagsReviewWhenCapped(rule.capKey()) ? "HIGH" : rule.severity(),
+                cappedPoints,
+                requiresReview,
+                rule.capKey());
     }
 
     private boolean eventKeepsProctoring(String eventCode) {

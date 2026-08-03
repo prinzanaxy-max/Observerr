@@ -131,7 +131,7 @@ public class LecturerDashboardService {
                 .courseCode(exam.getCourseCode())
                 .status("LIVE")
                 .remainingSeconds(remainingSeconds)
-                .activeStudents(activeSessions.isEmpty() ? exam.getEnrolledCount() : activeSessions.size())
+                .activeStudents(activeSessions.size())
                 .highRiskCount(highRisk)
                 .avgIntegrityScore(Math.round(avgScore * 10.0) / 10.0)
                 .liveMonitoringPath("/lecturer/exams/" + exam.getId() + "/live")
