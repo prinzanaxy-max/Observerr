@@ -37,6 +37,11 @@ build/
 env.md
 run-local.ps1
 
+### Secrets / local env — never commit VAPID private keys ###
+.env
+.env.local
+.env.*.local
+
 # Optional Node deps for scripts/*.mjs (Neon seeds only — not Java runtime)
 node_modules/
 scripts/node_modules/

@@ -241,7 +241,7 @@ Health check: `GET http://localhost:8080/health`
 | `AUTH_COOKIE_SECURE` | `true` |
 | `AUTH_COOKIE_SAME_SITE` | `None` (cross-site cookies with HTTPS frontend) |
 | `CLOUDINARY_*` | Profile picture uploads |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push (optional; no-op client if unset) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push (optional; no-op client if unset). Generate with `npx web-push generate-vapid-keys`, put public key in Observer-UI `.env.production` as `VITE_VAPID_PUBLIC_KEY`, and set both keys on Railway (or run `scripts/set-railway-vapid.ps1` after `railway login`). |
 
 See gitignored `env.md` for a full Railway Raw Editor template.
 
