@@ -1,5 +1,6 @@
 package com.backend.observerr.exam.service;
 
+import com.backend.observerr.exam.ExamDisplayStatusResolver;
 import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamRepository;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 
 @Slf4j
 @Service
@@ -42,6 +45,18 @@ public class ExamLifecycleService {
                     examId, exam.getStatus());
             return;
         }
+        if (!exam.isPublished()) {
+            log.debug("Exam examId={} is not published — skipping LIVE transition", examId);
+            return;
+        }
+
+        Instant now = Instant.now();
+        // Manual / early Go Live: align the window so students can enter immediately.
+        if (exam.getStartTime() != null && now.isBefore(exam.getStartTime())) {
+            int durationMinutes = ExamDisplayStatusResolver.resolveDurationMinutes(exam);
+            exam.setStartTime(now);
+            exam.setEndTime(now.plusSeconds(durationMinutes * 60L));
+        }
 
         exam.setStatus(ExamStatus.LIVE);
         examRepository.save(exam);
@@ -66,7 +81,7 @@ public class ExamLifecycleService {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.CONFLICT, "Only a live exam can be ended");
         }
-        java.time.Instant now = java.time.Instant.now();
+        Instant now = Instant.now();
         for (ExamSession session : sessionRepository.findByExamId(examId)) {
             if (session.getStatus() == ExamSessionStatus.IN_PROGRESS) {
                 session.setStatus(ExamSessionStatus.COMPLETED);

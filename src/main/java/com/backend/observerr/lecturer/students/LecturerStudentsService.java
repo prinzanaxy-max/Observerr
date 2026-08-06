@@ -212,7 +212,7 @@ public class LecturerStudentsService {
                 .time(TIME_FORMAT.format(event.getOccurredAt().atZone(ZoneId.systemDefault()).toLocalTime()))
                 .timestamp(event.getOccurredAt().toString())
                 .eventType(event.getEventCode())
-                .severity(event.getSeverity())
+                .severity(normalizeUiSeverity(event.getSeverity()))
                 .title(event.getTitle())
                 .description(event.getDescription())
                 .pointsDeducted(event.getPointsDeducted())
@@ -223,12 +223,20 @@ public class LecturerStudentsService {
     }
 
     private String mapLegacySeverity(String severity) {
-        return switch (severity) {
-            case "SUCCESS" -> "INFO";
-            case "WARNING" -> "MEDIUM";
-            case "DANGER" -> "HIGH";
-            case "NEUTRAL" -> "INFO";
-            default -> severity;
+        return normalizeUiSeverity(severity);
+    }
+
+    /** Map stored severities to the lecturer UI contract. */
+    private String normalizeUiSeverity(String severity) {
+        if (severity == null || severity.isBlank()) {
+            return "NEUTRAL";
+        }
+        return switch (severity.trim().toUpperCase()) {
+            case "HIGH", "CRITICAL", "ERROR", "DANGER" -> "DANGER";
+            case "MEDIUM", "WARN", "WARNING" -> "WARNING";
+            case "SUCCESS", "OK" -> "SUCCESS";
+            case "LOW", "INFO", "NEUTRAL" -> "NEUTRAL";
+            default -> severity.trim().toUpperCase();
         };
     }
 

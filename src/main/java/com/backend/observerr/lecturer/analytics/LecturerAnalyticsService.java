@@ -39,6 +39,7 @@ import java.util.Map;
 public class LecturerAnalyticsService {
 
     private static final Set<String> SUPPORTED_PERIODS = Set.of("7D", "30D", "3M");
+    private static final long MAX_CUSTOM_RANGE_DAYS = 90;
 
     private final LecturerAnalyticsOverviewRepository overviewRepository;
     private final IntegrityEventRepository integrityEventRepository;
@@ -47,9 +48,20 @@ public class LecturerAnalyticsService {
     @Transactional(readOnly = true)
     @Cacheable(
             cacheNames = "lecturerAnalyticsOverview",
-            key = "#lecturer.id + ':' + #period"
+            key = "#lecturer.id + ':' + (#startDate != null && #endDate != null ? (#startDate + ':' + #endDate) : #period)"
     )
-    public LecturerAnalyticsOverviewResponse getOverview(User lecturer, String period) {
+    public LecturerAnalyticsOverviewResponse getOverview(
+            User lecturer, String period, String startDate, String endDate) {
+        if (hasCustomRange(startDate, endDate)) {
+            InstantRange range = resolveCustomRange(startDate, endDate);
+            LecturerAnalyticsOverviewResponse live = deriveOverview(
+                    lecturer.getId(), "CUSTOM", range.start(), range.end());
+            if (live != null) {
+                return live;
+            }
+            return emptyOverview("CUSTOM");
+        }
+
         String normalizedPeriod = normalizePeriod(period);
         LecturerAnalyticsOverviewResponse live = deriveOverview(lecturer.getId(), normalizedPeriod);
         if (live != null) {
@@ -71,6 +83,12 @@ public class LecturerAnalyticsService {
         int days = (int) periodDays(period);
         Instant end = Instant.now();
         Instant start = end.minus(days, ChronoUnit.DAYS);
+        return deriveOverview(lecturerId, period, start, end);
+    }
+
+    private LecturerAnalyticsOverviewResponse deriveOverview(
+            Long lecturerId, String period, Instant start, Instant end) {
+        long days = Math.max(1, ChronoUnit.DAYS.between(start, end));
         Instant previousStart = start.minus(days, ChronoUnit.DAYS);
         Map<String, Object> current = aggregate(lecturerId, start, end);
         long sessions = ((Number) current.get("sessions")).longValue();
@@ -116,6 +134,32 @@ public class LecturerAnalyticsService {
                         .granularity(days > 30 ? "WEEK" : "DAY")
                         .points(trendPoints(lecturerId, start, end, days > 30)).build())
                 .topBehaviors(behaviors).build();
+    }
+
+    private LecturerAnalyticsOverviewResponse emptyOverview(String period) {
+        return LecturerAnalyticsOverviewResponse.builder()
+                .period(period)
+                .totalExamsMonitored(metric(0, 0, "from previous period"))
+                .totalFlaggedEvents(metric(0, 0, "from previous period"))
+                .avgIntegrityScore(AnalyticsIntegrityScoreDto.builder()
+                        .value(BigDecimal.valueOf(100).setScale(2, RoundingMode.HALF_UP))
+                        .changePercent(null)
+                        .changeDirection("STABLE")
+                        .changeLabel("vs previous period")
+                        .build())
+                .mostCommonFlag(AnalyticsMostCommonFlagDto.builder()
+                        .label("No flagged events")
+                        .sharePercent(0)
+                        .icon("verified")
+                        .build())
+                .trends(AnalyticsTrendsDto.builder()
+                        .title("Integrity Event Trends")
+                        .subtitle("Actual flagged events vs monitored sessions")
+                        .granularity("DAY")
+                        .points(List.of())
+                        .build())
+                .topBehaviors(List.of())
+                .build();
     }
 
     private Map<String, Object> aggregate(Long lecturerId, Instant start, Instant end) {
@@ -211,14 +255,22 @@ public class LecturerAnalyticsService {
 
     @Transactional(readOnly = true)
     public IntegrityReportPageDto getIntegrityEvents(
-            User lecturer, String period, int page, int size,
-            String search, String eventType, String severity) {
-        String normalizedPeriod = normalizePeriod(period);
-        Instant start = Instant.now().minus(periodDays(normalizedPeriod), ChronoUnit.DAYS);
+            User lecturer, String period, String startDate, String endDate,
+            int page, int size, String search, String eventType, String severity) {
+        Instant start;
+        Instant end = null;
+        if (hasCustomRange(startDate, endDate)) {
+            InstantRange range = resolveCustomRange(startDate, endDate);
+            start = range.start();
+            end = range.end();
+        } else {
+            String normalizedPeriod = normalizePeriod(period);
+            start = Instant.now().minus(periodDays(normalizedPeriod), ChronoUnit.DAYS);
+        }
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
         var result = integrityEventRepository.findReport(
-                lecturer.getId(), start, blankToNull(search), blankToNull(eventType),
+                lecturer.getId(), start, end, blankToNull(search), blankToNull(eventType),
                 blankToNull(severity), PageRequest.of(safePage, safeSize));
         return IntegrityReportPageDto.builder()
                 .content(result.getContent().stream().map(row -> IntegrityReportEventDto.builder()
@@ -232,8 +284,44 @@ public class LecturerAnalyticsService {
                         .pointsDeducted(row.getPointsDeducted()).build()).toList())
                 .page(result.getNumber()).size(result.getSize())
                 .totalElements(result.getTotalElements()).totalPages(result.getTotalPages())
-                .eventTypes(integrityEventRepository.findReportEventTypes(lecturer.getId(), start))
+                .eventTypes(integrityEventRepository.findReportEventTypes(lecturer.getId(), start, end))
                 .build();
+    }
+
+    private boolean hasCustomRange(String startDate, String endDate) {
+        boolean hasStart = startDate != null && !startDate.isBlank();
+        boolean hasEnd = endDate != null && !endDate.isBlank();
+        if (hasStart != hasEnd) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Both startDate and endDate are required for a custom range");
+        }
+        return hasStart;
+    }
+
+    private InstantRange resolveCustomRange(String startDate, String endDate) {
+        LocalDate start;
+        LocalDate end;
+        try {
+            start = LocalDate.parse(startDate.trim());
+            end = LocalDate.parse(endDate.trim());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "startDate and endDate must be ISO dates (YYYY-MM-DD)");
+        }
+        if (!end.isAfter(start) && !end.isEqual(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "endDate must be on or after startDate");
+        }
+        long days = ChronoUnit.DAYS.between(start, end) + 1;
+        if (days > MAX_CUSTOM_RANGE_DAYS) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Custom range cannot exceed " + MAX_CUSTOM_RANGE_DAYS + " days");
+        }
+        Instant startInstant = start.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant endInstant = end.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        return new InstantRange(startInstant, endInstant);
+    }
+
+    private record InstantRange(Instant start, Instant end) {
     }
 
     private long periodDays(String period) {

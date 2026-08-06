@@ -1,6 +1,7 @@
 package com.backend.observerr.student.exams;
 
 import com.backend.observerr.auth.model.User;
+import com.backend.observerr.exam.ExamDisplayStatusResolver;
 import com.backend.observerr.exam.dto.ExamSecurityDto;
 import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamDisplayStatus;
@@ -80,27 +81,11 @@ public class StudentExamService {
     }
 
     private ExamDisplayStatus computeDisplayStatus(Exam exam) {
-        Instant now = Instant.now();
-        Instant start = exam.getStartTime();
-        Instant end = start.plusSeconds(resolveDurationMinutes(exam) * 60L);
-
-        if (!now.isBefore(start) && now.isBefore(end)) {
-            return ExamDisplayStatus.LIVE;
-        }
-        if (now.isBefore(start)) {
-            return ExamDisplayStatus.UPCOMING;
-        }
-        return ExamDisplayStatus.COMPLETED;
+        return ExamDisplayStatusResolver.resolve(exam);
     }
 
     private int resolveDurationMinutes(Exam exam) {
-        if (exam.getDurationMinutes() != null && exam.getDurationMinutes() > 0) {
-            return exam.getDurationMinutes();
-        }
-        if (exam.getEndTime() != null && exam.getStartTime() != null) {
-            return (int) Duration.between(exam.getStartTime(), exam.getEndTime()).toMinutes();
-        }
-        return 120;
+        return ExamDisplayStatusResolver.resolveDurationMinutes(exam);
     }
 
     private String formatCourseLabel(String courseCode, String courseName) {

@@ -45,6 +45,7 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
             JOIN users u ON u.id = es.student_id
             WHERE e.lecturer_id = :lecturerId
               AND ie.occurred_at >= :start
+              AND (:end IS NULL OR ie.occurred_at < :end)
               AND (:eventType IS NULL OR ie.event_code = :eventType)
               AND (:severity IS NULL OR ie.severity = :severity
                    OR (:severity = 'DANGER' AND ie.severity IN ('HIGH', 'CRITICAL'))
@@ -64,6 +65,7 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
             JOIN users u ON u.id = es.student_id
             WHERE e.lecturer_id = :lecturerId
               AND ie.occurred_at >= :start
+              AND (:end IS NULL OR ie.occurred_at < :end)
               AND (:eventType IS NULL OR ie.event_code = :eventType)
               AND (:severity IS NULL OR ie.severity = :severity
                    OR (:severity = 'DANGER' AND ie.severity IN ('HIGH', 'CRITICAL'))
@@ -77,6 +79,7 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
     Page<IntegrityReportRow> findReport(
             @Param("lecturerId") Long lecturerId,
             @Param("start") Instant start,
+            @Param("end") Instant end,
             @Param("search") String search,
             @Param("eventType") String eventType,
             @Param("severity") String severity,
@@ -87,8 +90,13 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
             FROM integrity_events ie
             JOIN exam_sessions es ON es.id = ie.session_id
             JOIN exams e ON e.id = es.exam_id
-            WHERE e.lecturer_id = :lecturerId AND ie.occurred_at >= :start
+            WHERE e.lecturer_id = :lecturerId
+              AND ie.occurred_at >= :start
+              AND (:end IS NULL OR ie.occurred_at < :end)
             ORDER BY ie.event_code
             """, nativeQuery = true)
-    List<String> findReportEventTypes(@Param("lecturerId") Long lecturerId, @Param("start") Instant start);
+    List<String> findReportEventTypes(
+            @Param("lecturerId") Long lecturerId,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 }

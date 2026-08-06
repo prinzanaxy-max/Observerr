@@ -148,7 +148,21 @@ public class ExamController {
     public ResponseEntity<Map<String, Object>> startExam(
             @AuthenticationPrincipal User lecturer,
             @PathVariable Long examId) {
-        lecturerExamService.getExam(lecturer, examId);
+        LecturerExamDto exam = lecturerExamService.getExam(lecturer, examId);
+        if (!exam.isPublished()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "success", false,
+                    "message", "Publish the exam before starting it",
+                    "examId", examId
+            ));
+        }
+        if ("COMPLETED".equalsIgnoreCase(exam.getStatus())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "success", false,
+                    "message", "This exam has already ended",
+                    "examId", examId
+            ));
+        }
         examLifecycleService.transitionExamToLive(examId);
         return ResponseEntity.ok(Map.of(
                 "success", true,

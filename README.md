@@ -173,7 +173,7 @@ Session IDs are **UUIDs** for live ingest. Legacy demo sessions use **numeric** 
 | Migrations | Flyway (`src/main/resources/db/migration`) |
 | ORM | Spring Data JPA / Hibernate 7 |
 | Cache | Caffeine (student results) |
-| Push | Firebase Cloud Messaging (optional) |
+| Push | Native Web Push / VAPID (optional) |
 | Media | Cloudinary (profile pictures, optional) |
 | Build / deploy | Maven, Docker, Railway |
 
@@ -492,7 +492,7 @@ src/main/java/com/backend/observerr/
 │   ├── analytics/     Analytics overview API
 │   └── dashboard/     Home dashboard, live sessions, proctoring metadata
 ├── notification/      Web Push + device subscriptions
-├── config/            Security, CORS, cache, Firebase, Cloudinary
+├── config/            Security, CORS, cache, Web Push, Cloudinary
 └── exception/         Global error handling
 
 src/main/resources/db/migration/   Flyway SQL (V1–V17)

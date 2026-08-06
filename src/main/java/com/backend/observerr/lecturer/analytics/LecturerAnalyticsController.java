@@ -23,20 +23,24 @@ public class LecturerAnalyticsController {
     @GetMapping("/overview")
     public ResponseEntity<LecturerAnalyticsOverviewResponse> getOverview(
             @AuthenticationPrincipal User lecturer,
-            @RequestParam(defaultValue = "7D") String period) {
-        return ResponseEntity.ok(lecturerAnalyticsService.getOverview(lecturer, period));
+            @RequestParam(required = false, defaultValue = "7D") String period,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return ResponseEntity.ok(lecturerAnalyticsService.getOverview(lecturer, period, startDate, endDate));
     }
 
     @GetMapping("/integrity-events")
     public ResponseEntity<IntegrityReportPageDto> getIntegrityEvents(
             @AuthenticationPrincipal User lecturer,
-            @RequestParam(defaultValue = "7D") String period,
+            @RequestParam(required = false, defaultValue = "7D") String period,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String eventType,
             @RequestParam(required = false) String severity) {
         return ResponseEntity.ok(lecturerAnalyticsService.getIntegrityEvents(
-                lecturer, period, page, size, search, eventType, severity));
+                lecturer, period, startDate, endDate, page, size, search, eventType, severity));
     }
 }
