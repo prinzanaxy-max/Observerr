@@ -16,6 +16,7 @@ public class ExamStartScheduler {
 
     private final ExamRepository examRepository;
     private final ExamLifecycleService examLifecycleService;
+    private final ExamAttemptService examAttemptService;
 
     @Scheduled(fixedRateString = "${exam.start-check-interval-ms:60000}")
     public void activateDueExams() {
@@ -45,6 +46,7 @@ public class ExamStartScheduler {
         for (var exam : due) {
             try {
                 examLifecycleService.endExam(exam.getId());
+                examAttemptService.gradeSealedSessionsWithoutResults(exam.getId());
             } catch (Exception ex) {
                 log.error("Failed END transition for examId={}: {}", exam.getId(), ex.getMessage(), ex);
             }

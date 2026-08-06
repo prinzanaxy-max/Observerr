@@ -258,14 +258,15 @@ public class LecturerAnalyticsService {
             User lecturer, String period, String startDate, String endDate,
             int page, int size, String search, String eventType, String severity) {
         Instant start;
-        Instant end = null;
+        Instant end;
         if (hasCustomRange(startDate, endDate)) {
             InstantRange range = resolveCustomRange(startDate, endDate);
             start = range.start();
             end = range.end();
         } else {
             String normalizedPeriod = normalizePeriod(period);
-            start = Instant.now().minus(periodDays(normalizedPeriod), ChronoUnit.DAYS);
+            end = Instant.now().plusSeconds(1);
+            start = end.minus(periodDays(normalizedPeriod), ChronoUnit.DAYS);
         }
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));

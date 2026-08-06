@@ -43,6 +43,12 @@ public class NotificationController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAll(@AuthenticationPrincipal User user) {
+        inboxService.deleteAll(user.getId());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/preferences")
     public NotificationPreferencesDto preferences(@AuthenticationPrincipal User user) {
         return inboxService.preferences(user.getId());

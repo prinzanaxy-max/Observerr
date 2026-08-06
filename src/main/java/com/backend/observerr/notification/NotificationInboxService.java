@@ -70,6 +70,11 @@ public class NotificationInboxService {
         notificationRepository.delete(owned(userId, notificationId));
     }
 
+    @Transactional
+    public int deleteAll(Long userId) {
+        return notificationRepository.deleteByUserId(userId);
+    }
+
     @Transactional(readOnly = true)
     public NotificationPreferencesDto preferences(Long userId) {
         return toDto(preferenceRepository.findById(userId)

@@ -201,12 +201,42 @@ public class ExamAttemptService {
         return response;
     }
 
+    /**
+     * After an exam is ended, create PENDING {@link ExamResult} rows for any sealed
+     * sessions that were never submitted, so the lecturer can publish them to students.
+     */
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.STUDENT_RESULTS_PAGE_CACHE, allEntries = true),
+            @CacheEvict(value = CacheConfig.STUDENT_RESULTS_SUMMARY_CACHE, allEntries = true),
+            @CacheEvict(value = CacheConfig.STUDENT_RESULT_DETAIL_CACHE, allEntries = true)
+    })
+    public int gradeSealedSessionsWithoutResults(Long examId) {
+        int graded = 0;
+        for (ExamSession session : sessionRepository.findByExamId(examId)) {
+            if (session.getStatus() != ExamSessionStatus.COMPLETED) {
+                continue;
+            }
+            if (resultRepository.findBySessionId(session.getId()).isPresent()) {
+                continue;
+            }
+            if (grade(session.getId(), false) != null) {
+                graded++;
+            }
+        }
+        return graded;
+    }
+
     private void grade(UUID sessionId) {
+        grade(sessionId, true);
+    }
+
+    private ExamResult grade(UUID sessionId, boolean notifyLecturer) {
         ExamSession completed = sessionRepository.findById(sessionId).orElseThrow();
         List<ExamQuestion> questions =
                 questionRepository.findByExamIdOrderByDisplayOrderAsc(completed.getExamId());
         if (questions.isEmpty()) {
-            return;
+            return null;
         }
         List<ExamAnswer> answers = answerRepository.findBySessionIdOrderByQuestionIdAsc(sessionId);
         Map<Long, ExamAnswer> answerByQuestion = answers.stream()
@@ -242,8 +272,11 @@ public class ExamAttemptService {
                 .releaseStatus(ExamResultStatus.PENDING)
                 .submittedAt(submittedAt)
                 .build());
-        notificationService.notifyStudentCompleted(
-                exam.getLecturerId(), completed.getStudentId(), exam.getId());
+        if (notifyLecturer) {
+            notificationService.notifyStudentCompleted(
+                    exam.getLecturerId(), completed.getStudentId(), exam.getId());
+        }
+        return result;
     }
 
     private List<QuestionAnalysisDto> buildAnalysis(ExamResult result) {

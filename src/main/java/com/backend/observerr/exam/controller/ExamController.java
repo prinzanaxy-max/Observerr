@@ -178,10 +178,12 @@ public class ExamController {
             @PathVariable Long examId) {
         lecturerExamService.getExam(lecturer, examId);
         examLifecycleService.endExam(examId);
+        int graded = examAttemptService.gradeSealedSessionsWithoutResults(examId);
         return ResponseEntity.ok(Map.of(
                 "examId", examId,
                 "status", "COMPLETED",
-                "endedAt", java.time.Instant.now().toString()
+                "endedAt", java.time.Instant.now().toString(),
+                "resultsCreated", graded
         ));
     }
 
