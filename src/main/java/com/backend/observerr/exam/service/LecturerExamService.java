@@ -80,6 +80,7 @@ public class LecturerExamService {
                 .webcamMonitoring(security.isWebcamMonitoring())
                 .tabSwitchTracking(security.isTabSwitchTracking())
                 .blockCopyPaste(security.isBlockCopyPaste())
+                .allowRetake(security.isAllowRetake())
                 .published(request.isPublish())
                 .enrolledCount(0)
                 .capacityCount(null)
@@ -156,6 +157,7 @@ public class LecturerExamService {
                 .webcamMonitoring(exam.isWebcamMonitoring())
                 .tabSwitchTracking(exam.isTabSwitchTracking())
                 .blockCopyPaste(exam.isBlockCopyPaste())
+                .allowRetake(exam.isAllowRetake())
                 .build();
     }
 

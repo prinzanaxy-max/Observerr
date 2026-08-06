@@ -47,6 +47,11 @@ public class Exam {
     @Column(name = "block_copy_paste", nullable = false)
     private boolean blockCopyPaste = true;
 
+    /** When false (default), a student may only complete one attempt. */
+    @Builder.Default
+    @Column(name = "allow_retake", nullable = false)
+    private boolean allowRetake = false;
+
     @Builder.Default
     @Column(nullable = false)
     private boolean published = false;

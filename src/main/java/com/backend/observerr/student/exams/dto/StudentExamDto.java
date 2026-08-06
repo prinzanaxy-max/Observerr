@@ -22,4 +22,7 @@ public class StudentExamDto {
     private final int durationMinutes;
     private final ExamSecurityDto security;
     private final boolean canTake;
+    /** True when the student already has a completed session or graded result. */
+    private final boolean attempted;
+    private final boolean allowRetake;
 }

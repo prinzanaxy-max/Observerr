@@ -6,6 +6,9 @@ import com.backend.observerr.exam.dto.ExamSecurityDto;
 import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamDisplayStatus;
 import com.backend.observerr.exam.repository.ExamRepository;
+import com.backend.observerr.exam.repository.ExamResultRepository;
+import com.backend.observerr.integrity.model.ExamSessionStatus;
+import com.backend.observerr.integrity.repository.ExamSessionRepository;
 import com.backend.observerr.student.exams.dto.StudentExamDto;
 import com.backend.observerr.student.exams.dto.StudentExamListResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,12 +32,14 @@ public class StudentExamService {
     private static final DateTimeFormatter ISO_LOCAL = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final ExamRepository examRepository;
+    private final ExamSessionRepository examSessionRepository;
+    private final ExamResultRepository examResultRepository;
 
     @Transactional(readOnly = true)
     public StudentExamListResponse listExams(User student) {
         List<StudentExamDto> exams = examRepository.findPublishedExamsForStudent(student.getId())
                 .stream()
-                .map(this::toDto)
+                .map(exam -> toDto(exam, student.getId()))
                 .sorted(examListComparator())
                 .toList();
 
@@ -48,13 +53,22 @@ public class StudentExamService {
     public StudentExamDto getExam(User student, Long examId) {
         Exam exam = examRepository.findPublishedExamForStudent(examId, student.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
-        return toDto(exam);
+        return toDto(exam, student.getId());
     }
 
-    private StudentExamDto toDto(Exam exam) {
+    private StudentExamDto toDto(Exam exam, Long studentId) {
         ExamDisplayStatus displayStatus = computeDisplayStatus(exam);
         LocalDateTime startLocal = toLocalDateTime(exam.getStartTime());
         LocalDateTime endLocal = startLocal.plusMinutes(resolveDurationMinutes(exam));
+
+        boolean inProgress = examSessionRepository.existsByExamIdAndStudentIdAndStatus(
+                exam.getId(), studentId, ExamSessionStatus.IN_PROGRESS);
+        boolean attempted = examSessionRepository.existsByExamIdAndStudentIdAndStatus(
+                exam.getId(), studentId, ExamSessionStatus.COMPLETED)
+                || examResultRepository.existsByExamIdAndStudentId(exam.getId(), studentId);
+
+        boolean canTake = displayStatus == ExamDisplayStatus.LIVE
+                && (inProgress || !attempted || exam.isAllowRetake());
 
         return StudentExamDto.builder()
                 .id(exam.getId())
@@ -68,7 +82,9 @@ public class StudentExamService {
                 .endAt(endLocal.format(ISO_LOCAL))
                 .durationMinutes(resolveDurationMinutes(exam))
                 .security(toSecurityDto(exam))
-                .canTake(displayStatus == ExamDisplayStatus.LIVE)
+                .canTake(canTake)
+                .attempted(attempted)
+                .allowRetake(exam.isAllowRetake())
                 .build();
     }
 
@@ -77,6 +93,7 @@ public class StudentExamService {
                 .webcamMonitoring(exam.isWebcamMonitoring())
                 .tabSwitchTracking(exam.isTabSwitchTracking())
                 .blockCopyPaste(exam.isBlockCopyPaste())
+                .allowRetake(exam.isAllowRetake())
                 .build();
     }
 

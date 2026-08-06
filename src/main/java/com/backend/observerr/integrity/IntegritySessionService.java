@@ -5,6 +5,7 @@ import com.backend.observerr.exam.model.Exam;
 import com.backend.observerr.exam.model.ExamStatus;
 import com.backend.observerr.exam.repository.ExamEnrollmentRepository;
 import com.backend.observerr.exam.repository.ExamRepository;
+import com.backend.observerr.exam.repository.ExamResultRepository;
 import com.backend.observerr.exam.service.ExamStudentBlockService;
 import com.backend.observerr.notification.NotificationService;
 import com.backend.observerr.integrity.dto.*;
@@ -38,6 +39,7 @@ public class IntegritySessionService {
 
     private final ExamRepository examRepository;
     private final ExamEnrollmentRepository examEnrollmentRepository;
+    private final ExamResultRepository examResultRepository;
     private final ExamSessionRepository examSessionRepository;
     private final IntegrityEventRepository integrityEventRepository;
     private final IntegrityScoringPolicy scoringPolicy;
@@ -66,6 +68,12 @@ public class IntegritySessionService {
                     .startingScore(session.getStartingScore())
                     .status(ExamSessionStatus.IN_PROGRESS.name())
                     .build();
+        }
+
+        if (hasCompletedAttempt(examId, student.getId()) && !exam.isAllowRetake()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "You have already submitted this exam. Retakes are not allowed.");
         }
 
         UUID sessionId = UUID.randomUUID();
@@ -361,6 +369,12 @@ public class IntegritySessionService {
         if (!exam.isWebcamMonitoring()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Webcam monitoring is not enabled");
         }
+    }
+
+    private boolean hasCompletedAttempt(Long examId, Long studentId) {
+        return examSessionRepository.existsByExamIdAndStudentIdAndStatus(
+                examId, studentId, ExamSessionStatus.COMPLETED)
+                || examResultRepository.existsByExamIdAndStudentId(examId, studentId);
     }
 
     private void validateSummary(ExamSession session, ExamSessionSummaryDto summary) {

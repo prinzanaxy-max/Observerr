@@ -16,4 +16,6 @@ public class ExamSecurityDto {
     private boolean webcamMonitoring;
     private boolean tabSwitchTracking;
     private boolean blockCopyPaste;
+    /** Opt-in: students may start another attempt after submitting. Default false. */
+    private boolean allowRetake;
 }
