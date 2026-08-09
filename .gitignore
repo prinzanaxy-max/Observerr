@@ -41,6 +41,8 @@ run-local.ps1
 .env
 .env.local
 .env.*.local
+backend env.txt
+*env.txt
 
 # Optional Node deps for scripts/*.mjs (Neon seeds only — not Java runtime)
 node_modules/
