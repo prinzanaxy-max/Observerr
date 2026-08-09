@@ -2,6 +2,7 @@ package com.backend.observerr.exam.controller;
 
 import com.backend.observerr.auth.model.User;
 import com.backend.observerr.exam.dto.CreateExamRequest;
+import com.backend.observerr.exam.dto.ExamSecurityDto;
 import com.backend.observerr.exam.dto.LecturerExamDto;
 import com.backend.observerr.exam.dto.LecturerExamListResponse;
 import com.backend.observerr.exam.dto.ExamQuestionRequest;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -227,5 +229,14 @@ public class ExamController {
             @PathVariable String studentIdentifier) {
         examStudentBlockService.unblock(lecturer, examId, studentIdentifier);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{examId}/security")
+    @PreAuthorize("hasRole('LECTURER')")
+    public ResponseEntity<ExamSecurityDto> updateSecurity(
+            @AuthenticationPrincipal User lecturer,
+            @PathVariable Long examId,
+            @Valid @RequestBody ExamSecurityDto security) {
+        return ResponseEntity.ok(lecturerExamService.updateSecurity(lecturer, examId, security));
     }
 }

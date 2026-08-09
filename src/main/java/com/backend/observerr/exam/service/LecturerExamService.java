@@ -124,6 +124,21 @@ public class LecturerExamService {
         return toDto(examRepository.save(exam));
     }
 
+    @Transactional
+    public ExamSecurityDto updateSecurity(User lecturer, Long examId, ExamSecurityDto security) {
+        Exam exam = examRepository.findByIdAndLecturerId(examId, lecturer.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exam not found"));
+        if ("LIVE".equals(exam.getStatus().name()) || "COMPLETED".equals(exam.getStatus().name())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot modify security settings for exams that are live or completed");
+        }
+        exam.setWebcamMonitoring(security.isWebcamMonitoring());
+        exam.setTabSwitchTracking(security.isTabSwitchTracking());
+        exam.setBlockCopyPaste(security.isBlockCopyPaste());
+        exam.setAllowRetake(security.isAllowRetake());
+        examRepository.save(exam);
+        return toSecurityDto(exam);
+    }
+
     private LecturerExamDto toDto(Exam exam) {
         ExamDisplayStatus displayStatus = computeDisplayStatus(exam);
         LocalDateTime startLocal = toLocalDateTime(exam.getStartTime());
