@@ -51,6 +51,12 @@ public class LecturerProctoringService {
 
         List<ProctoringFeedDto> feeds = live.getStudents().stream()
                 .filter(student -> student.getLatestSessionId() != null)
+                // Only students with a session still in progress have an active
+                // LiveKit publisher — a COMPLETED/NOT_STARTED session has nothing
+                // to subscribe to, so listing it as a feed just shows dead video.
+                .filter(student -> "ACTIVE".equals(student.getLiveStatus())
+                        || "TAB_OUT".equals(student.getLiveStatus())
+                        || "FACE_ISSUE".equals(student.getLiveStatus()))
                 .map(student -> ProctoringFeedDto.builder()
                         .sessionId(student.getLatestSessionId())
                         .participantIdentity(student.getLatestSessionId())

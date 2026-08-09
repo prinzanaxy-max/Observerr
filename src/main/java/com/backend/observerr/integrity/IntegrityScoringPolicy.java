@@ -126,7 +126,13 @@ public class IntegrityScoringPolicy {
                 if (normalized.equals("GAZE_DEVIATION_SUSTAINED") && duration < 10_000) {
                     throw invalid("durationMs does not match " + normalized);
                 }
-                yield new Rule("Gaze deviation", "LOW", 3, false, "GAZE");
+                // Severity scales with how long the student looked away, rather than
+                // a flat deduction regardless of duration.
+                yield switch (normalized) {
+                    case "GAZE_DEVIATION_MODERATE" -> new Rule("Gaze deviation", "MEDIUM", 6, false, "GAZE");
+                    case "GAZE_DEVIATION_SUSTAINED" -> new Rule("Gaze deviation", "HIGH", 10, false, "GAZE");
+                    default -> new Rule("Gaze deviation", "LOW", 3, false, "GAZE");
+                };
             }
             case "FACE_PARTIAL_BRIEF" -> {
                 if (duration > 5_000) {
@@ -138,19 +144,19 @@ public class IntegrityScoringPolicy {
                 if (duration < 2_000 || duration >= 5_000) {
                     throw invalid("durationMs does not match " + normalized);
                 }
-                yield new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT");
+                yield new Rule("No face detected", "MEDIUM", 6, false, "FACE_ABSENT");
             }
             case "FACE_ABSENT_MEDIUM" -> {
                 if (duration < 5_000 || duration >= 15_000) {
                     throw invalid("durationMs does not match " + normalized);
                 }
-                yield new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT");
+                yield new Rule("No face detected", "HIGH", 12, false, "FACE_ABSENT");
             }
             case "FACE_ABSENT_LONG" -> {
                 if (duration < 15_000) {
                     throw invalid("durationMs does not match " + normalized);
                 }
-                yield new Rule("No face detected", "MEDIUM", 8, false, "FACE_ABSENT");
+                yield new Rule("No face detected", "CRITICAL", 20, true, "FACE_ABSENT");
             }
             default -> throw invalid("Unsupported integrity eventCode");
         };
