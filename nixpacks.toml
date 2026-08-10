@@ -1,0 +1,11 @@
+# Fallback if Nixpacks is used instead of Dockerfile.
+[phases.build]
+cmds = ["chmod +x ./mvnw && ./mvnw -B -DskipTests clean package -Dmaven.javadoc.skip=true -Dmaven.source.skip=true"]
+
+[variables]
+MAVEN_OPTS = "-Xmx768m -XX:+UseContainerSupport -XX:TieredStopAtLevel=1"
+
+[start]
+cmd = "java -XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport -XX:+ExitOnOutOfMemoryError -jar target/observerr-0.0.1-SNAPSHOT.jar"
+
+

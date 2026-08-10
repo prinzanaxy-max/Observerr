@@ -1,0 +1,838 @@
+{
+  "info": {
+    "name": "Observerr API",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "Observerr backend API — auth, account, student results/exams/attempts, integrity + LiveKit media tokens, lecturer exam lifecycle (questions, results, blocks), dashboard, proctoring, analytics, Web Push devices, notifications.\n\n**Setup:** Import `Observerr.postman_environment.json`, select environment, run **Login (Demo Student)** or **Login (Demo Lecturer)**.\n\n**Docs:** `postman/README.md`, `postman/RESPONSE_EXAMPLES.md`.\n\nProduction: `https://observerr-production.up.railway.app` · Frontend: `https://observerr-ui.pages.dev`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://observerr-production.up.railway.app" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "examId", "value": "1" },
+    { "key": "sessionId", "value": "" },
+    { "key": "resultId", "value": "1" },
+    { "key": "questionId", "value": "1" },
+    { "key": "studentIdentifier", "value": "STU-12345" },
+    { "key": "notificationId", "value": "1" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/ready",
+            "description": "DB + optional Redis/Web Push configuration probes (Railway/k8s style)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (Demo Student)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionalId\": \"STU-12345\",\n  \"password\": \"YOUR_PASSWORD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "  pm.environment.set('accessToken', j.accessToken);",
+                "  pm.environment.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Login (Demo Lecturer)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionalId\": \"STU-67890\",\n  \"password\": \"YOUR_PASSWORD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "  pm.environment.set('accessToken', j.accessToken);",
+                "  pm.environment.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Register (Student)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"Student\",\n  \"institutionalId\": \"STU-001\",\n  \"email\": \"student@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"STUDENT\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Public registration is STUDENT-only. Requires firstName + lastName. 201 AuthResponse; 400 validation / lecturer role; 409 duplicate id/email."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Register (Lecturer)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"Lecturer\",\n  \"institutionalId\": \"LEC-001\",\n  \"email\": \"lecturer@test.com\",\n  \"password\": \"password123\",\n  \"role\": \"LECTURER\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Expected **400** — public registration is students only. Lecturer accounts are provisioned by the institution."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{refreshToken}}" }],
+            "url": "{{baseUrl}}/api/auth/refresh"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('accessToken', j.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', j.refreshToken);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"allDevices\": false }" },
+            "url": "{{baseUrl}}/api/auth/logout"
+          }
+        },
+        {
+          "name": "Me (Auth)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/auth/me" }
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/account/me" }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Demo\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": "{{baseUrl}}/api/account/me"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"oldPass1\",\n  \"newPassword\": \"newPass2\",\n  \"confirmPassword\": \"newPass2\"\n}"
+            },
+            "url": "{{baseUrl}}/api/account/me/password"
+          }
+        },
+        {
+          "name": "Upload Profile Picture",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": [] }]
+            },
+            "url": "{{baseUrl}}/api/account/me/profile-picture"
+          }
+        },
+        {
+          "name": "Delete Profile Picture",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/account/me/profile-picture" }
+        }
+      ]
+    },
+    {
+      "name": "Student",
+      "item": [
+        {
+          "name": "List Results",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/student/results?page=0&size=10&sort=MOST_RECENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "student", "results"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "sort", "value": "MOST_RECENT", "description": "MOST_RECENT | OLDEST | HIGHEST_INTEGRITY | LOWEST_INTEGRITY" }
+              ]
+            },
+            "description": "Paginated released exam results (`content[]`, `totalElements`). Use **Dashboard Stats** for summary counts."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const c = pm.response.json().content;",
+                "  if (c && c.length) {",
+                "    pm.collectionVariables.set('resultId', String(c[0].id));",
+                "    pm.environment.set('resultId', String(c[0].id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Get Result Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/results/{{resultId}}" }
+        },
+        {
+          "name": "Get Result Analysis",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/results/{{resultId}}/analysis",
+            "description": "Same payload as result detail (integrity timeline + answers when released)."
+          }
+        },
+        {
+          "name": "Dashboard Stats",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/stats" }
+        },
+        {
+          "name": "List Exams",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/exams",
+            "description": "All published exams for any student (not enrollment-only). Response: `{ exams[], totalElements }`."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const j = pm.response.json();",
+                "  if (j.exams && j.exams.length) {",
+                "    const pick = j.exams.find(e => e.status === 'LIVE') || j.exams[0];",
+                "    pm.collectionVariables.set('examId', String(pick.id));",
+                "    pm.environment.set('examId', String(pick.id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Get Exam Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams/{{examId}}" }
+        },
+        {
+          "name": "Preview Exam Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/exams/{{examId}}/questions",
+            "description": "Question bank preview (no correct answers). Requires published exam + enrollment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Integrity (Student)",
+      "item": [
+        {
+          "name": "Start Session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"startingScore\": 100\n}" },
+            "url": "{{baseUrl}}/api/student/exams/{{examId}}/sessions",
+            "description": "Exam must be **LIVE** with webcam monitoring. Returns **201** for a new session, or **201/200** reusing an existing IN_PROGRESS session (refresh-safe). 403 not enrolled/blocked; 404 missing exam; 409 exam not live."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201 || pm.response.code === 200) {",
+                "  pm.collectionVariables.set('sessionId', pm.response.json().sessionId);",
+                "  pm.environment.set('sessionId', pm.response.json().sessionId);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Batch Integrity Events",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"clientEventId\": \"11111111-1111-1111-1111-111111111111\",\n      \"eventCode\": \"COPY_EVENT\",\n      \"title\": \"Copy detected\",\n      \"description\": \"Student copied exam content\",\n      \"severity\": \"MEDIUM\",\n      \"pointsDeducted\": 7,\n      \"scoreAfter\": 93,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:05:30Z\",\n      \"metadata\": { \"action\": \"copy\" }\n    },\n    {\n      \"clientEventId\": \"22222222-2222-2222-2222-222222222222\",\n      \"eventCode\": \"TAB_SWITCH\",\n      \"title\": \"Tab switch\",\n      \"description\": \"document.hidden became true\",\n      \"severity\": \"MEDIUM\",\n      \"pointsDeducted\": 5,\n      \"scoreAfter\": 88,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:06:00Z\",\n      \"metadata\": { \"source\": \"visibility\" }\n    },\n    {\n      \"clientEventId\": \"33333333-3333-3333-3333-333333333333\",\n      \"eventCode\": \"CLIPBOARD_EVENT\",\n      \"title\": \"Paste detected\",\n      \"description\": \"Legacy clipboard code; server normalizes via metadata.action\",\n      \"severity\": \"HIGH\",\n      \"pointsDeducted\": 8,\n      \"scoreAfter\": 80,\n      \"requiresReview\": false,\n      \"timestamp\": \"2026-07-28T14:06:30Z\",\n      \"metadata\": { \"action\": \"paste\" }\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/integrity-events",
+            "description": "Server canonicalizes points + caps (COPY max 35). Client pointsDeducted/scoreAfter are ignored. Idempotent on clientEventId. 200 `{ accepted, skipped, currentScore, requiresReview }`; 409 if session completed; 403 if blocked."
+          }
+        },
+        {
+          "name": "Complete Session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"summary\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"examId\": {{examId}},\n    \"startedAt\": \"2026-07-28T14:00:00Z\",\n    \"endedAt\": \"2026-07-28T16:00:00Z\",\n    \"startingScore\": 100,\n    \"finalScore\": 87,\n    \"totalEvents\": 1,\n    \"totalDeductions\": 13,\n    \"requiresReview\": false,\n    \"proctoringAvailable\": true\n  },\n  \"events\": []\n}"
+            },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/complete"
+          }
+        },
+        {
+          "name": "Student Media Token (LiveKit)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/media-token",
+            "description": "Publish-only LiveKit token for in-progress session. Requires LIVEKIT_* env on server."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exam Attempt (Student)",
+      "item": [
+        {
+          "name": "Session Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/questions",
+            "description": "Questions for active session (options only, no correct answer)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const q = pm.response.json();",
+                "  if (Array.isArray(q) && q.length) {",
+                "    pm.collectionVariables.set('questionId', String(q[0].id));",
+                "    pm.environment.set('questionId', String(q[0].id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Restore Saved Answers",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/answers" }
+        },
+        {
+          "name": "Autosave Answer",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"selectedOption\": \"A\"\n}" },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/answers/{{questionId}}",
+            "description": "selectedOption: A | B | C | D. Rate-limited per student."
+          }
+        },
+        {
+          "name": "Submit Exam",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": {{questionId}}, \"selectedOption\": \"A\" }\n  ],\n  \"completion\": {\n    \"summary\": {\n      \"sessionId\": \"{{sessionId}}\",\n      \"examId\": {{examId}},\n      \"startedAt\": \"2026-07-28T14:00:00Z\",\n      \"endedAt\": \"2026-07-28T16:00:00Z\",\n      \"startingScore\": 100,\n      \"finalScore\": 87,\n      \"totalEvents\": 0,\n      \"totalDeductions\": 13,\n      \"requiresReview\": false,\n      \"proctoringAvailable\": true\n    },\n    \"events\": []\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/student/exam-sessions/{{sessionId}}/submit",
+            "description": "Grades answers, completes integrity session, creates result (release separately by lecturer)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Exams",
+      "item": [
+        {
+          "name": "List Exams",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/exams?status=ALL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "exams"],
+              "query": [
+                { "key": "status", "value": "ALL", "description": "ALL | LIVE | UPCOMING | COMPLETED" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}" }
+        },
+        {
+          "name": "Create Exam",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Midterm Exam\",\n  \"course\": \"CS201: Data Structures\",\n  \"startAt\": \"2026-08-01T14:00:00\",\n  \"durationMinutes\": 120,\n  \"security\": {\n    \"webcamMonitoring\": true,\n    \"tabSwitchTracking\": true,\n    \"blockCopyPaste\": false\n  },\n  \"publish\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/lecturer/exams",
+            "description": "When `publish` is true, all STUDENT users are enrolled automatically."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "  const id = pm.response.json().id;",
+                "  pm.collectionVariables.set('examId', String(id));",
+                "  pm.environment.set('examId', String(id));",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Start Exam (Go Live)",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/start" }
+        },
+        {
+          "name": "End Exam",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/end" }
+        },
+        {
+          "name": "Publish Exam",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/publish" }
+        },
+        {
+          "name": "Replace Enrollments",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentInstitutionalIds\": [\"STU-12345\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/enrollments"
+          }
+        },
+        {
+          "name": "Get Questions (Lecturer)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/questions" }
+        },
+        {
+          "name": "Replace Questions",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"text\": \"What is 2+2?\",\n    \"options\": { \"A\": \"3\", \"B\": \"4\", \"C\": \"5\", \"D\": \"6\" },\n    \"correctAnswer\": \"B\",\n    \"points\": 10\n  }\n]"
+            },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/questions",
+            "description": "Replaces entire question set. `text` accepts alias `prompt`."
+          }
+        },
+        {
+          "name": "List Exam Results",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/results" }
+        },
+        {
+          "name": "Release Results",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resultIds\": []\n}" },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/results/release",
+            "description": "Empty resultIds releases all pending results for the exam."
+          }
+        },
+        {
+          "name": "Unrelease Results",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resultIds\": []\n}" },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/results/unrelease"
+          }
+        },
+        {
+          "name": "Block Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Integrity violation\"\n}" },
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/students/{{studentIdentifier}}/block"
+          }
+        },
+        {
+          "name": "Unblock Student",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/students/{{studentIdentifier}}/unblock" }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Students",
+      "item": [
+        {
+          "name": "List Students",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/students?page=0&size=10&course=ALL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "students"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "course", "value": "ALL" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Session Detail (UUID or legacy ID)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/students/sessions/{{sessionId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Home",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/dashboard" }
+        },
+        {
+          "name": "Needs Review",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/students/needs-review?limit=10" }
+        },
+        {
+          "name": "Live Sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/exams/{{examId}}/live-sessions",
+            "description": "`stats.active` = count of IN_PROGRESS sessions only. Enrolled-but-not-started students are in `stats.total` / `students[]` with `liveStatus: NOT_STARTED`, and do **not** inflate active."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Proctoring",
+      "item": [
+        {
+          "name": "List Live Exams",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/proctoring/exams" }
+        },
+        {
+          "name": "Exam Feeds",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/lecturer/proctoring/exams/{{examId}}/feeds" }
+        },
+        {
+          "name": "Lecturer Media Token (LiveKit)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/lecturer/proctoring/exams/{{examId}}/media-token",
+            "description": "Subscribe-only LiveKit token for exam owner."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lecturer — Analytics",
+      "item": [
+        {
+          "name": "Overview (7D)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/analytics/overview?period=7D",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "analytics", "overview"],
+              "query": [{ "key": "period", "value": "7D", "description": "7D | 30D | 3M" }]
+            }
+          }
+        },
+        {
+          "name": "Overview (30D)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=30D"
+          }
+        },
+        {
+          "name": "Overview (3M)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=3M"
+          }
+        },
+        {
+          "name": "Integrity Events Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/lecturer/analytics/integrity-events?period=7D&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lecturer", "analytics", "integrity-events"],
+              "query": [
+                { "key": "period", "value": "7D", "description": "7D | 30D | 3M" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "eventType", "value": "", "disabled": true },
+                { "key": "severity", "value": "", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Devices",
+      "item": [
+        {
+          "name": "Register Web Push Subscription",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example\",\n  \"keys\": {\n    \"p256dh\": \"p256dh-public-key\",\n    \"auth\": \"auth-secret\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/devices/token",
+            "description": "200 `{ success, message }`. Re-registering the same endpoint transfers ownership to the current user."
+          }
+        },
+        {
+          "name": "Unregister Web Push Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/example\",\n  \"keys\": {\n    \"p256dh\": \"p256dh-public-key\",\n    \"auth\": \"auth-secret\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/devices/token",
+            "description": "204 No Content when the subscription belongs to the caller."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "category", "value": "EXAM", "disabled": true, "description": "EXAM | INTEGRITY | RESULT | SYSTEM" },
+                { "key": "unreadOnly", "value": "false", "disabled": true }
+              ]
+            },
+            "description": "200 page `{ content[], page, size, totalElements, totalPages, unreadCount }`."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "  const c = pm.response.json().content;",
+                "  if (c && c.length) {",
+                "    pm.collectionVariables.set('notificationId', String(c[0].id));",
+                "    pm.environment.set('notificationId', String(c[0].id));",
+                "  }",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/notifications/{{notificationId}}/read" }
+        },
+        {
+          "name": "Mark All Read",
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/notifications/read-all" }
+        },
+        {
+          "name": "Delete Notification",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/notifications/{{notificationId}}" }
+        },
+        {
+          "name": "Get Notification Preferences",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/notifications/preferences" }
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examEvents\": true,\n  \"integrityAlerts\": true,\n  \"resultUpdates\": true,\n  \"systemUpdates\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/notifications/preferences"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
+          "name": "Protected Route Without Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Login Wrong Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institutionalId\": \"STU-12345\",\n  \"password\": \"wrongpassword\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Analytics Unsupported Period",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/lecturer/analytics/overview?period=Custom"
+          }
+        },
+        {
+          "name": "Student Route as Lecturer (403)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/student/exams" }
+        }
+      ]
+    }
+  ]
+}
